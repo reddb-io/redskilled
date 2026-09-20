@@ -221,7 +221,16 @@ ask_secret RELEASE_PAT "Paste the GitHub release token:"
 set_secret RELEASE_PAT "$RELEASE_PAT"
 
 stage "Android release signer" 7
-say "The Android wizard creates or reuses the permanent signing key and installs all four ANDROID_RELEASE_* secrets."
+say "The migration must reuse the existing permanent signer; a new key would break updates for already signed installs."
+ANDROID_KEY_DIRECTORY="${REDSKILLED_KEY_DIRECTORY:-$HOME/.redskilled/keys}"
+ANDROID_KEYSTORE_PATH="$ANDROID_KEY_DIRECTORY/redskilled-android-release.jks"
+if [[ ! -f "$ANDROID_KEYSTORE_PATH" ]]; then
+  warn "the original signer is not present at $ANDROID_KEYSTORE_PATH"
+  step "Restore the original redskilled-android-release.jks from the signing-key backup."
+  step "Then rerun this wizard. GitHub's old encrypted secret cannot be read back."
+  exit 1
+fi
+say "The Android wizard reuses that key and installs all four ANDROID_RELEASE_* secrets."
 bash scripts/setup-redskilled-android-signing.sh
 
 stage "Verify the disarmed publisher" 2

@@ -34,6 +34,9 @@ listed in `plugin-code.txt`. Canonical content is fetched by `skills.lock.toon`.
 - Repository secrets still need administrator configuration: `NPM_TOKEN`,
   `RELEASE_PAT`, and the four existing `ANDROID_RELEASE_*` signing secrets.
   GitHub refused organization-secret inspection with HTTP 403 (`admin:org`).
+- The original Android `.jks` must be restored from backup before running the
+  wizard. The old encrypted repository secret cannot be read back, and replacing
+  the signer would break updates for already signed installs.
 - At content cutover, replace the old required `test`/`typecheck` checks with
   `content / validate-content`; do not merge manifests requiring 4.5.0 before
   that runtime has been published and its exact-version install verified.
