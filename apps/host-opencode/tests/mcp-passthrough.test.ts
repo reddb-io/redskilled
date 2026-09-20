@@ -220,23 +220,18 @@ describe("planPluginMcp against the real source tree", () => {
   // ADR 0147 §4 left each plugin declaring the one server it owns: navigator,
   // rsp and the default red-ui are switched off at the declaration, so what the
   // passthrough plans from the shipped tree is exactly that remainder.
-  // ADR 0147 §2 renamed the dev plugin's adapter to `rs_dev` (#4023). The
-  // launcher script keeps its own name — it is the same on-demand entry the
-  // passthrough has always resolved — so only the SERVER name moved.
   it("plans the dev plugin's rs_dev MCP and nothing beside it", () => {
     const plans = planPluginMcp(REAL_PLUGINS, "dev");
     expect(plans.map((p) => p.name)).toEqual(["rs_dev"]);
     const rsDev = plans[0]!;
     expect(rsDev.entry.type).toBe("local");
-    // The source dev checkout ships the launcher; the resolved
-    // command must point at the absolute script path.
-    expect(rsDev.entry.command[1]).toMatch(/redskilled-mcp\.sh$/);
+    expect(rsDev.entry.command).toEqual(["red-skills-redskilled-mcp"]);
   });
 
-  it("keeps the installed RedSkills launcher in the runtime fallback chain", () => {
+  it("declares the preinstalled runtime command without an embedded shell", () => {
     const raw = readMcpJson(REAL_PLUGINS, "dev")!;
-    const body = raw.mcpServers!.rs_dev!.args![1]!;
-    expect(body).toContain("$HOME/.codex/.tmp/marketplaces/red-skills");
+    expect(raw.mcpServers!.rs_dev!.command).toBe("red-skills-redskilled-mcp");
+    expect(raw.mcpServers!.rs_dev!.args ?? []).toEqual([]);
   });
 
   // ADR 0147 §2 / #4027: the memory adapter ships as `rs_memory`.
@@ -244,9 +239,7 @@ describe("planPluginMcp against the real source tree", () => {
     const plans = planPluginMcp(REAL_PLUGINS, "memory");
     expect(plans.map((p) => p.name)).toEqual(["rs_memory"]);
     const redMemory = plans[0]!;
-    expect(redMemory.entry.command[0]).toBe("node");
-    expect(redMemory.entry.command[1]).toMatch(/bootstrap\.mjs$/);
-    expect(redMemory.entry.command[2]).toBe("mcp");
+    expect(redMemory.entry.command).toEqual(["red-skills-memory", "mcp"]);
   });
 
   // ADR 0147 §2 / #4026: the brain adapter ships as `rs_brain`.
