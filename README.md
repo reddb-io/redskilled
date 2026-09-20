@@ -37,7 +37,8 @@ npm packages and checks command availability. Hosts require the commands on PATH
 hooks and MCP startup do not fetch packages. `red-skills-resource` exposes helpers
 extracted from the content repository. `red-skills-hook` owns host hook behavior.
 
-The existing publisher now belongs here. `REDSKILLED_PUBLISH_ENABLED` remains off
+The existing publisher now belongs here. Configure its human-owned credentials with
+`bash scripts/setup-redskilled-publishing.sh`. `REDSKILLED_PUBLISH_ENABLED` remains off
 until the old publisher is disabled and credentials, signing and consumers have
 passed the migration checks. See [migration/README.md](migration/README.md).
 

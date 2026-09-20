@@ -9,7 +9,8 @@ listed in `plugin-code.txt`. Canonical content is fetched by `skills.lock.toon`.
 1. Validate both candidate trees, the package rehearsal, and the red-dev acquisition
    change. Publish the Redskilled repository with publishing disarmed.
 2. Configure repository/environment secrets for npm, release pushes, and Android
-   signing. Existing secrets cannot be read back from GitHub and copied.
+   signing with `bash scripts/setup-redskilled-publishing.sh`. Existing secrets
+   cannot be read back from GitHub and copied.
 3. Disable `red-publish`, `red-release`, and `red-mobile-apk` in RedSkills, and verify
    no publishing job is running. Enable `REDSKILLED_PUBLISH_ENABLED=true` only after
    the old publishing authority is off and the release is ready.

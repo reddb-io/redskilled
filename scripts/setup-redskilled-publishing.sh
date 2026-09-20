@@ -190,71 +190,64 @@ finish() {
 # Replace the example below. Set the two totals to match the stages you write.
 # ──────────────────────────────────────────────────────────────────────────
 
-TOTAL_STAGES=3
-TOTAL_MINUTES=8
+TOTAL_STAGES=4
+TOTAL_MINUTES=15
 
-banner "Redskilled Android release signing"
-
-stage "Create the long-lived release key" 3
-say "This key signs every install and update of io.reddb.redskilled."
-command -v keytool >/dev/null 2>&1 || {
-  printf '  %skeytool is missing — install JDK 17 before continuing%s\n' "$RED" "$RESET"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+command -v gh >/dev/null 2>&1 || {
+  printf '  %sgh is required to install repository secrets%s\n' "$RED" "$RESET"
   exit 1
 }
-KEY_DIRECTORY="${REDSKILLED_KEY_DIRECTORY:-$HOME/.redskilled/keys}"
-KEYSTORE_PATH="$KEY_DIRECTORY/redskilled-android-release.jks"
-KEY_ALIAS="redskilled"
-ask_secret KEY_PASSWORD "Choose a strong password for the release key:"
-[[ ${#KEY_PASSWORD} -ge 12 ]] || {
-  warn "use at least 12 characters"
-  exit 1
-}
-if [[ -f "$KEYSTORE_PATH" ]]; then
-  warn "an existing release key was found at $KEYSTORE_PATH"
-  confirm "Reuse this existing key?" || exit 1
-else
-  confirm "Generate the permanent Redskilled Android release key now?" || exit 1
-  install -d -m 700 "$KEY_DIRECTORY"
-  keytool -genkeypair \
-    -keystore "$KEYSTORE_PATH" \
-    -storetype JKS \
-    -alias "$KEY_ALIAS" \
-    -keyalg RSA \
-    -keysize 4096 \
-    -validity 10000 \
-    -dname "CN=Redskilled, OU=Mobile, O=RedDB, C=BR" \
-    -storepass "$KEY_PASSWORD" \
-    -keypass "$KEY_PASSWORD" >/dev/null
-  chmod 600 "$KEYSTORE_PATH"
-fi
-keytool -list -keystore "$KEYSTORE_PATH" -alias "$KEY_ALIAS" \
-  -storepass "$KEY_PASSWORD" >/dev/null
-note "release key: $KEYSTORE_PATH"
-warn "back up this .jks offline; losing it prevents signed app updates"
 
-stage "Install GitHub Actions secrets" 3
-say "The keystore stays outside git. Only encrypted repository secrets reach CI."
-if base64 --help 2>&1 | grep -q -- '-w'; then
-  KEYSTORE_BASE64=$(base64 -w 0 "$KEYSTORE_PATH")
-else
-  KEYSTORE_BASE64=$(base64 < "$KEYSTORE_PATH" | tr -d '\n')
-fi
-set_secret ANDROID_RELEASE_KEYSTORE_BASE64 "$KEYSTORE_BASE64"
-set_secret ANDROID_RELEASE_STORE_PASSWORD "$KEY_PASSWORD"
-set_secret ANDROID_RELEASE_KEY_ALIAS "$KEY_ALIAS"
-set_secret ANDROID_RELEASE_KEY_PASSWORD "$KEY_PASSWORD"
+banner "Redskilled publishing credentials"
 
-stage "Run the first signed build" 2
-say "A manual run proves the credentials before the next v* release tag."
-open_url "https://github.com/reddb-io/redskilled/actions/workflows/red-mobile-apk.yml"
-if confirm "Trigger the signed APK workflow on main now?"; then
-  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-    gh workflow run red-mobile-apk.yml --ref main
-    note "workflow requested; follow it in the browser"
-  else
-    SKIPPED+=("first signed APK workflow run")
-    warn "gh is not authenticated; click Run workflow in the browser"
-  fi
+stage "npm publishing token" 3
+say "The token publishes the existing @reddb-io/red-skills package names from reddb-io/redskilled."
+open_url "https://www.npmjs.com/settings/~/tokens"
+step "Create a granular token with Read and write access to every @reddb-io/red-skills* package and bypass 2FA for automation."
+step "Copy it now; npm will not show it again."
+ask_secret NPM_TOKEN "Paste the npm token:"
+[[ -n "$NPM_TOKEN" ]] || { warn "the npm token cannot be empty"; exit 1; }
+set_secret NPM_TOKEN "$NPM_TOKEN"
+
+stage "GitHub release identity" 3
+say "The release train needs a user token because pushes made by github.token do not start downstream workflows."
+open_url "https://github.com/settings/tokens/new?description=Redskilled%20release&scopes=repo,workflow"
+step "Create the token with repo and workflow scopes, authorized for the reddb-io organization."
+step "Copy the token after GitHub creates it."
+ask_secret RELEASE_PAT "Paste the GitHub release token:"
+[[ -n "$RELEASE_PAT" ]] || { warn "the release token cannot be empty"; exit 1; }
+set_secret RELEASE_PAT "$RELEASE_PAT"
+
+stage "Android release signer" 7
+say "The Android wizard creates or reuses the permanent signing key and installs all four ANDROID_RELEASE_* secrets."
+bash scripts/setup-redskilled-android-signing.sh
+
+stage "Verify the disarmed publisher" 2
+say "This checks names only; GitHub never reveals secret values after they are stored."
+required=(
+  NPM_TOKEN
+  RELEASE_PAT
+  ANDROID_RELEASE_KEYSTORE_BASE64
+  ANDROID_RELEASE_STORE_PASSWORD
+  ANDROID_RELEASE_KEY_ALIAS
+  ANDROID_RELEASE_KEY_PASSWORD
+)
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  installed="$(gh secret list --repo reddb-io/redskilled --json name --jq '.[].name')"
+  for name in "${required[@]}"; do
+    grep -qxF "$name" <<<"$installed" || SKIPPED+=("GitHub secret $name")
+  done
+  publish_enabled="$(gh variable get REDSKILLED_PUBLISH_ENABLED --repo reddb-io/redskilled 2>/dev/null || true)"
+  [[ "$publish_enabled" == "false" ]] || {
+    warn "REDSKILLED_PUBLISH_ENABLED is '$publish_enabled'; expected false before cutover"
+    exit 1
+  }
+  note "all credential writes targeted reddb-io/redskilled"
+  note "publishing remains disarmed; this wizard does not publish, tag or merge"
+else
+  SKIPPED+=("final GitHub secret and variable verification")
 fi
 
 finish
