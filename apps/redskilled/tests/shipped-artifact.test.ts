@@ -70,7 +70,7 @@ describe("redskilled ships as a bundled artifact", () => {
       "--asset", REDSKILLED_BUNDLE_ASSET,
       "--minify",
       "--reddb-from-package",
-    ], { cwd: APP, stdio: "pipe" });
+    ], { cwd: APP, stdio: "pipe", env: { ...process.env, RED_BUILD_VERSION: "4.2.8" } });
     const current = join(root, "current");
     await symlink(join(root, "sets", "4.2.8"), current, "dir");
 
