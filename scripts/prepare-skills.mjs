@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 if (args.length && (args.length !== 2 || args[0] !== '--source')) throw new Error('Usage: prepare-skills.mjs [--source <content checkout>]');
-const lock = Object.fromEntries(readFileSync(join(root, 'skills.lock.toon'), 'utf8').trim().split('\n').map(line => line.split(/: /)));
+const lock = Object.fromEntries(readFileSync(join(root, 'skills.lock.toon'), 'utf8').trim().split(/\r?\n/).map(line => line.split(/: /)));
 if (lock.repository !== 'reddb-io/red-skills' || !/^[a-f0-9]{40}$/.test(lock.commit)) throw new Error('Invalid skills lock');
 let source = args[1] && resolve(args[1]);
 let temp;
@@ -28,7 +28,7 @@ try {
     if (!existsSync(join(source, path))) throw new Error(`Content missing: ${path}`);
     rmSync(join(root, path), { recursive: true, force: true });
     mkdirSync(dirname(join(root, path)), { recursive: true });
-    cpSync(join(source, path), join(root, path), { recursive: true, filter: path => !path.split('/').some(p => ['node_modules', '.git', 'dist'].includes(p)) });
+    cpSync(join(source, path), join(root, path), { recursive: true, filter: path => !path.split(/[\\/]/).some(p => ['node_modules', '.git', 'dist'].includes(p)) });
   }
   // This generated tree is consumed by existing packagers and runtime resource loaders.
   cpSync(join(root, 'runtime/plugins'), join(root, 'plugins'), { recursive: true });
