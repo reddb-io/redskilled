@@ -1,6 +1,6 @@
 # Changesets
 
-This folder holds the pending release intents for `red-skills`. Every
+This folder holds the pending release intents for `redskilled`. Every
 user-visible change lands with a changesets-compatible Markdown file;
 `red-release.yml` turns the queue into a **Version-PR**, and merging that PR
 publishes the next `vX.Y.Z` Release.
