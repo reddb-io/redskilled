@@ -1,0 +1,125 @@
+{
+  "memory/claude/SessionStart/0": {
+    "kind": "plugin",
+    "plugin": "memory",
+    "args": [
+      "hook",
+      "SessionStart",
+      "--runner",
+      "claude"
+    ]
+  },
+  "memory/claude/PostToolUse/0": {
+    "kind": "plugin",
+    "plugin": "memory",
+    "args": [
+      "hook",
+      "PostToolUse",
+      "--runner",
+      "claude"
+    ]
+  },
+  "memory/claude/Stop/0": {
+    "kind": "plugin",
+    "plugin": "memory",
+    "args": [
+      "hook",
+      "Stop",
+      "--runner",
+      "claude"
+    ]
+  },
+  "memory/claude/PreCompact/0": {
+    "kind": "plugin",
+    "plugin": "memory",
+    "args": [
+      "hook",
+      "PreCompact",
+      "--runner",
+      "claude"
+    ]
+  },
+  "memory/codex/SessionStart/0": {
+    "kind": "plugin",
+    "plugin": "memory",
+    "args": [
+      "hook",
+      "SessionStart",
+      "--runner",
+      "codex"
+    ]
+  },
+  "memory/codex/PostToolUse/0": {
+    "kind": "plugin",
+    "plugin": "memory",
+    "args": [
+      "hook",
+      "PostToolUse",
+      "--runner",
+      "codex"
+    ]
+  },
+  "memory/codex/Stop/0": {
+    "kind": "plugin",
+    "plugin": "memory",
+    "args": [
+      "hook",
+      "Stop",
+      "--runner",
+      "codex"
+    ]
+  },
+  "brain/claude/SessionStart/0": {
+    "kind": "plugin",
+    "plugin": "brain",
+    "args": [
+      "hook",
+      "SessionStart",
+      "--runner",
+      "claude"
+    ]
+  },
+  "brain/codex/SessionStart/0": {
+    "kind": "plugin",
+    "plugin": "brain",
+    "args": [
+      "hook",
+      "SessionStart",
+      "--runner",
+      "codex"
+    ]
+  },
+  "dev/claude/SessionStart/0": {
+    "kind": "ready",
+    "plugin": "dev"
+  },
+  "dev/claude/PreToolUse/0": {
+    "kind": "script",
+    "path": "plugins/dev/skills/misc/branch-lock/scripts/branch-lock-hook.sh",
+    "plugin": "dev"
+  },
+  "dev/claude/PreToolUse/1": {
+    "kind": "script",
+    "path": "plugins/dev/hooks/command-guard.sh",
+    "plugin": "dev"
+  },
+  "dev/codex/SessionStart/0": {
+    "kind": "ready",
+    "plugin": "dev"
+  },
+  "dev/codex/SessionStart/1": {
+    "kind": "script",
+    "path": "plugins/dev/hooks/ensure-codex-statusline.mjs",
+    "plugin": "dev"
+  },
+  "dev/codex/PreToolUse/0": {
+    "kind": "script",
+    "path": "plugins/dev/hooks/branch-lock-codex.sh",
+    "plugin": "dev"
+  },
+  "dev/codex/PreToolUse/1": {
+    "kind": "script",
+    "path": "plugins/dev/hooks/command-guard.sh",
+    "plugin": "dev"
+  }
+}

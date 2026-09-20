@@ -1,0 +1,66 @@
+# Claude Code local state
+.claude/
+# Worktrees a host CLI mints for itself (`--worktree`). Registered with git, so
+# the parent status hides them — until one is pruned with its directory left in
+# place and hundreds of MB become stageable.
+.muse/
+
+# Per-repo agent ephemera (never committed)
+.red/wiki/
+**/.red/tmp/
+
+# Memory plugin — per-project graph store + session pointer (local state, like node_modules)
+.red/memory/graph.rdb*
+.red/memory/sessions/
+.red/memory/incompat-bak/
+
+# Brain plugin — per-project RedDB runtime store + caches + session pointer (local state)
+.red/brain/
+/apps/rsp/.red/
+
+# Node
+node_modules/
+
+# Turbo build cache (regenerated locally; never committed)
+.turbo/
+**/.turbo/
+
+# OS
+.DS_Store
+
+# Per-plugin build outputs — shipped as GitHub Release assets, fetched dynamically (ADR 0034)
+dist/
+
+# VSCode extension bundle — rebuilt by `pnpm -C apps/vscode-extension-red-skills build`,
+# packed into the gitignored dist/*.vsix, never committed.
+apps/*/out/
+
+# vitest cache
+.vite/
+
+# nested per-skill local state (session pointers)
+**/.red/memory/sessions/
+
+# sandcastle runtime scratch (ADR 0033)
+.sandcastle/
+.red/tmp/
+.red/state/
+
+# Composed from skills.lock.toon; executable overlays belong to runtime/.
+/plugins/
+/.claude-plugin/marketplace.json
+/.agents/plugins/marketplace.json
+/.gemini-plugin/marketplace.json
+/.skills-cache/
+
+/packaging/pi/
+/packaging/npm/runtime/
+/packaging/npm/.agents/
+/packaging/npm/.claude-plugin/
+/packaging/npm/.gemini-plugin/
+/packaging/npm/scripts/generate-*
+/packaging/npm/scripts/build-gemini-extension.mjs
+/packaging/npm/scripts/validate-gemini-extension.mjs
+/packaging/npm/scripts/install-*
+/packaging/npm/scripts/check-skills-boundary.mjs
+/packaging/npm/scripts/lib/

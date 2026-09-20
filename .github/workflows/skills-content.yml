@@ -1,0 +1,28 @@
+name: Skills content contract
+on:
+  workflow_call:
+    inputs:
+      runtime-ref:
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  validate-content:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          path: content
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          repository: reddb-io/redskilled
+          ref: ${{ inputs.runtime-ref }}
+          path: runtime
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - run: node runtime/scripts/check-skills-boundary.mjs content
+      - run: node runtime/scripts/generate-codex-manifests.mjs --root content --check
+      - run: node runtime/scripts/generate-gemini-manifests.mjs --root content --check
+      - run: node runtime/scripts/generate-pi-manifests.mjs --root content --check
