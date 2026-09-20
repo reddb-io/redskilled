@@ -126,43 +126,14 @@ export function startRedskilledSystemTray(options: RedskilledSystemTrayOptions):
       debug: false,
       copyDir: true,
     });
-    tray.onClick((action) => {
-      if (action.seq_id === DASHBOARD_ITEM) {
-        try {
-          (options.openDashboard ?? (() => openDashboardTerminal(platform, env)))();
-        } catch (error) {
-          options.log?.(`could not open dashboard: ${errorMessage(error)}`);
-        }
-      } else if (action.seq_id === QUIT_ITEM) {
-        try {
-          void Promise.resolve(options.quit()).catch((error: unknown) => {
-            options.log?.(`could not stop from system tray: ${errorMessage(error)}`);
-          });
-        } catch (error) {
-          options.log?.(`could not stop from system tray: ${errorMessage(error)}`);
-        }
-      }
-    });
+    tray.onClick((action) => handleTrayClick(action, options, platform, env));
     await tray.ready?.();
     if (stopped) {
       await stopSystray(tray);
       tray = null;
       return false;
     }
-    refresh = setInterval(() => {
-      try {
-        const update = tray?.sendAction({
-          type: "update-item",
-          item: statusItem(options.version, readState(options)),
-          seq_id: STATUS_ITEM,
-        });
-        void Promise.resolve(update).catch((error: unknown) => {
-          options.log?.(`could not refresh system tray: ${errorMessage(error)}`);
-        });
-      } catch (error) {
-        options.log?.(`could not refresh system tray: ${errorMessage(error)}`);
-      }
-    }, options.refreshMs ?? 5_000);
+    refresh = setInterval(() => refreshTray(tray, options), options.refreshMs ?? 5_000);
     refresh.unref();
     return true;
   })().catch((error: unknown) => {
@@ -182,6 +153,46 @@ export function startRedskilledSystemTray(options: RedskilledSystemTrayOptions):
       if (current != null) await stopSystray(current);
     },
   };
+}
+
+function handleTrayClick(
+  action: TrayAction,
+  options: RedskilledSystemTrayOptions,
+  platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv,
+): void {
+  if (action.seq_id === DASHBOARD_ITEM) {
+    try {
+      (options.openDashboard ?? (() => openDashboardTerminal(platform, env)))();
+    } catch (error) {
+      options.log?.(`could not open dashboard: ${errorMessage(error)}`);
+    }
+    return;
+  }
+  if (action.seq_id !== QUIT_ITEM) return;
+  try {
+    void Promise.resolve(options.quit()).catch((error: unknown) => {
+      options.log?.(`could not stop from system tray: ${errorMessage(error)}`);
+    });
+  } catch (error) {
+    options.log?.(`could not stop from system tray: ${errorMessage(error)}`);
+  }
+}
+
+function refreshTray(tray: SystrayInstance | null, options: RedskilledSystemTrayOptions): void {
+  if (tray == null) return;
+  try {
+    const update = tray.sendAction({
+      type: "update-item",
+      item: statusItem(options.version, readState(options)),
+      seq_id: STATUS_ITEM,
+    });
+    void Promise.resolve(update).catch((error: unknown) => {
+      options.log?.(`could not refresh system tray: ${errorMessage(error)}`);
+    });
+  } catch (error) {
+    options.log?.(`could not refresh system tray: ${errorMessage(error)}`);
+  }
 }
 
 function menuItems(version: string, state: RedskilledTrayState): readonly TrayMenuItem[] {
