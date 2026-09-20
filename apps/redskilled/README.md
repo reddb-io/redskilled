@@ -554,7 +554,7 @@ $RS unit uninstall                   # remove it; nothing starts the daemon afte
 ### Browser dashboard
 
 `redskilled-web` is an HTTPS companion process. It is installed beside the
-daemon by `redskilled provision`, but it never enters the daemon bundle and the
+daemon by the provisioning command, but it never enters the daemon bundle and the
 daemon continues to listen only on its local Unix socket or Named Pipe. The
 dashboard shows every registered Project and Worker on this Host and provides
 bounded controls for queues, Worktrees, Brain, Memory and paired devices.

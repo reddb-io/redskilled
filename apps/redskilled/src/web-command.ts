@@ -24,63 +24,95 @@ const WEB_COMMAND_USAGE = `Usage: redskilled web <serve|pair|devices|revoke|ca|u
 
 export async function runRedskilledWebCommand(args: readonly string[], write = (text: string) => process.stdout.write(text)): Promise<number> {
   const [command = "status", ...rest] = args;
-  const paths = redskilledWebPaths();
   if (command === "--help" || command === "help") { write(WEB_COMMAND_USAGE); return 0; }
-  if (command === "serve") {
-    const configured = await readWebConfig();
-    const port = Number(value(rest, "--port") ?? configured.port ?? REDSKILLED_WEB_DEFAULT_PORT);
-    if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error("--port must be an integer from 1 to 65535");
-    const server = await startRedskilledWebServer({ port, host: value(rest, "--host") ?? configured.host ?? "::", log: (line) => process.stderr.write(`redskilled web: ${line}\n`) });
-    write(`${encode({ service: "redskilled-web", url: server.url, port: server.port, ca_fingerprint: server.tls.fingerprint, names: server.tls.names } as unknown as JsonValue)}\n`);
-    await new Promise<void>((resolve) => {
-      const stop = (): void => { void server.close().finally(resolve); };
-      process.once("SIGINT", stop); process.once("SIGTERM", stop);
-    });
+  const handler = WEB_COMMANDS[command];
+  if (handler == null) throw new Error(`unknown web command ${JSON.stringify(command)}`);
+  return handler(rest, write);
+}
+
+type WebCommandWriter = (text: string) => void;
+type WebCommandHandler = (args: readonly string[], write: WebCommandWriter) => Promise<number>;
+
+const WEB_COMMANDS: Readonly<Record<string, WebCommandHandler>> = {
+  serve: runWebServe,
+  pair: runWebPair,
+  devices: runWebDevices,
+  revoke: runWebRevoke,
+  ca: runWebCa,
+  unit: runWebUnit,
+  status: runWebStatus,
+};
+
+export async function runWebServe(args: readonly string[], write: WebCommandWriter): Promise<number> {
+  const configured = await readWebConfig();
+  const port = Number(value(args, "--port") ?? configured.port ?? REDSKILLED_WEB_DEFAULT_PORT);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error("--port must be an integer from 1 to 65535");
+  const server = await startRedskilledWebServer({ port, host: value(args, "--host") ?? configured.host ?? "::", log: (line) => process.stderr.write(`redskilled web: ${line}\n`) });
+  write(`${encode({ service: "redskilled-web", url: server.url, port: server.port, ca_fingerprint: server.tls.fingerprint, names: server.tls.names } as unknown as JsonValue)}\n`);
+  await new Promise<void>((resolve) => {
+    const stop = (): void => { void server.close().finally(resolve); };
+    process.once("SIGINT", stop); process.once("SIGTERM", stop);
+  });
+  return 0;
+}
+
+export async function runWebPair(args: readonly string[], write: WebCommandWriter): Promise<number> {
+  const paths = redskilledWebPaths();
+  const configured = await readWebConfig();
+  const port = configured.port ?? REDSKILLED_WEB_DEFAULT_PORT;
+  const tls = await ensureRedskilledWebTls(paths);
+  const invitation = await createWebInvitation(paths, value(args, "--name") ?? "Browser");
+  const urls = tls.names.filter((name) => !name.includes(":")).map((name) => `https://${name}:${port}/pair/${invitation.token}`);
+  write(`${encode({ url: urls[0], urls, expires_at: invitation.expiresAt, ca: `https://localhost:${port}/ca.crt`, ca_fingerprint: tls.fingerprint } as unknown as JsonValue)}\n`);
+  return 0;
+}
+
+export async function runWebDevices(_args: readonly string[], write: WebCommandWriter): Promise<number> {
+  write(`${encode((await listWebDevices(redskilledWebPaths())) as unknown as JsonValue)}\n`);
+  return 0;
+}
+
+export async function runWebRevoke(args: readonly string[], write: WebCommandWriter): Promise<number> {
+  const id = args[0]?.trim();
+  if (!id) throw new Error("revoke requires a device id");
+  write(`${encode({ device_id: id, applied: await revokeWebDevice(redskilledWebPaths(), id) })}\n`);
+  return 0;
+}
+
+export async function runWebCa(args: readonly string[], write: WebCommandWriter): Promise<number> {
+  const paths = redskilledWebPaths();
+  const tls = await ensureRedskilledWebTls(paths);
+  const operation = args[0] ?? "export";
+  if (operation === "export") {
+    const destination = args[1] ?? join(process.cwd(), "redskilled-local-ca.crt");
+    await copyFile(paths.caCertificate, destination);
+    write(`${encode({ certificate: destination, fingerprint: tls.fingerprint })}\n`);
     return 0;
   }
-  if (command === "pair") {
-    const configured = await readWebConfig();
-    const port = configured.port ?? REDSKILLED_WEB_DEFAULT_PORT;
-    const tls = await ensureRedskilledWebTls(paths);
-    const invitation = await createWebInvitation(paths, value(rest, "--name") ?? "Browser");
-    const urls = tls.names.filter((name) => !name.includes(":")).map((name) => `https://${name}:${port}/pair/${invitation.token}`);
-    write(`${encode({ url: urls[0], urls, expires_at: invitation.expiresAt, ca: `https://localhost:${port}/ca.crt`, ca_fingerprint: tls.fingerprint } as unknown as JsonValue)}\n`);
+  if (operation === "install") {
+    const database = join(homedir(), ".pki", "nssdb");
+    await mkdir(database, { recursive: true, mode: 0o700 });
+    try { execFileSync("certutil", ["-A", "-d", `sql:${database}`, "-n", "Redskilled Local CA", "-t", "C,,", "-i", paths.caCertificate], { stdio: "pipe" }); }
+    catch { throw new Error(`could not run certutil; import ${paths.caCertificate} into the browser and verify ${tls.fingerprint}`); }
+    write(`${encode({ installed: true, database, fingerprint: tls.fingerprint })}\n`);
     return 0;
   }
-  if (command === "devices") { write(`${encode((await listWebDevices(paths)) as unknown as JsonValue)}\n`); return 0; }
-  if (command === "revoke") { const id = rest[0]?.trim(); if (!id) throw new Error("revoke requires a device id"); write(`${encode({ device_id: id, applied: await revokeWebDevice(paths, id) })}\n`); return 0; }
-  if (command === "ca") {
-    const tls = await ensureRedskilledWebTls(paths);
-    const operation = rest[0] ?? "export";
-    if (operation === "export") {
-      const destination = rest[1] ?? join(process.cwd(), "redskilled-local-ca.crt");
-      await copyFile(paths.caCertificate, destination);
-      write(`${encode({ certificate: destination, fingerprint: tls.fingerprint })}\n`);
-      return 0;
-    }
-    if (operation === "install") {
-      const database = join(homedir(), ".pki", "nssdb");
-      await mkdir(database, { recursive: true, mode: 0o700 });
-      try { execFileSync("certutil", ["-A", "-d", `sql:${database}`, "-n", "Redskilled Local CA", "-t", "C,,", "-i", paths.caCertificate], { stdio: "pipe" }); }
-      catch { throw new Error(`could not run certutil; import ${paths.caCertificate} into the browser and verify ${tls.fingerprint}`); }
-      write(`${encode({ installed: true, database, fingerprint: tls.fingerprint })}\n`);
-      return 0;
-    }
-    throw new Error("ca accepts install or export");
-  }
-  if (command === "unit") {
-    const operation = rest[0] ?? "status";
-    const result = operation === "install" ? await installRedskilledWebUnit() : operation === "remove" ? await removeRedskilledWebUnit() : redskilledWebUnitStatus();
-    write(`${encode(result as unknown as JsonValue)}\n`);
-    return "installed" in result && result.installed === false ? 1 : 0;
-  }
-  if (command === "status") {
-    const configured = await readWebConfig();
-    const tls = await ensureRedskilledWebTls(paths);
-    write(`${encode({ url: `https://localhost:${configured.port ?? REDSKILLED_WEB_DEFAULT_PORT}`, bind: configured.host ?? "::", ca: paths.caCertificate, ca_fingerprint: tls.fingerprint, unit: redskilledWebUnitStatus() } as unknown as JsonValue)}\n`);
-    return 0;
-  }
-  throw new Error(`unknown web command ${JSON.stringify(command)}`);
+  throw new Error("ca accepts install or export");
+}
+
+export async function runWebUnit(args: readonly string[], write: WebCommandWriter): Promise<number> {
+  const operation = args[0] ?? "status";
+  const result = operation === "install" ? await installRedskilledWebUnit() : operation === "remove" ? await removeRedskilledWebUnit() : redskilledWebUnitStatus();
+  write(`${encode(result as unknown as JsonValue)}\n`);
+  return "installed" in result && result.installed === false ? 1 : 0;
+}
+
+export async function runWebStatus(_args: readonly string[], write: WebCommandWriter): Promise<number> {
+  const paths = redskilledWebPaths();
+  const configured = await readWebConfig();
+  const tls = await ensureRedskilledWebTls(paths);
+  write(`${encode({ url: `https://localhost:${configured.port ?? REDSKILLED_WEB_DEFAULT_PORT}`, bind: configured.host ?? "::", ca: paths.caCertificate, ca_fingerprint: tls.fingerprint, unit: redskilledWebUnitStatus() } as unknown as JsonValue)}\n`);
+  return 0;
 }
 
 function value(args: readonly string[], name: string): string | undefined { const at = args.indexOf(name); return at < 0 ? undefined : args[at + 1]; }

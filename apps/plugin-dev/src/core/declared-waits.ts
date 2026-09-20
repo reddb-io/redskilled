@@ -273,6 +273,22 @@ export const DECLARED_WAITS: readonly DeclaredWait[] = [
     },
   },
   {
+    path: "apps/redskilled/src/web-auth.ts",
+    fn: "mutate",
+    subject: "the web authentication store lock becoming available",
+    deadline: "2 seconds across 100 local 20ms retries",
+    escalation: "throws `redskilled web authentication store remained locked`",
+    heartbeat: { silent: "a short same-host lock retry whose terminal throw names the blocked store" },
+  },
+  {
+    path: "apps/redskilled/src/web-server.ts",
+    fn: "streamState",
+    subject: "the next browser dashboard snapshot",
+    deadline: "unbounded while the authenticated request remains open",
+    escalation: "request close, session revocation or session expiry ends the stream",
+    heartbeat: { silent: "the browser stream is itself the liveness surface and publishes each resulting snapshot" },
+  },
+  {
     path: "packages/worker/src/Orchestrator.ts",
     fn: "startWarningInterval",
     subject: "the agent's idle minutes while no output arrives",
