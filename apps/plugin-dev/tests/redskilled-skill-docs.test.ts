@@ -21,7 +21,7 @@ describe("redskilled operator skill (#3249)", () => {
     const manifest = JSON.parse(manifestText) as { skills: string[] };
 
     expect(manifest.skills).toContain("./skills/engineering/redskilled");
-    expect(rootReadme).toContain("[`redskilled`](./plugins/dev/skills/engineering/redskilled/SKILL.md)");
+    expect(rootReadme).toContain("[`redskilled`](https://github.com/reddb-io/red-skills/blob/main/plugins/dev/skills/engineering/redskilled/SKILL.md)");
     expect(bucketReadme).toContain("**[redskilled](./redskilled/SKILL.md)**");
     expect(askRed).toContain("/redskilled");
   });

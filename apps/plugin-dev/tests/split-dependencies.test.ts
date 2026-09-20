@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseReqReferences, planUnblockSweep, planCloseCascade } from '../src/core/boot-sweep.js';
+import { parseReqReferences, planUnblockSweep, planCloseCascade, decideDependencyPromotion } from '../src/core/boot-sweep.js';
 const labels = ['blocked:dependency', 'req:10', 'req:reddb-io/red-skills#10'];
 describe('repository-qualified dependencies', () => {
   it('keeps equal issue numbers in different repositories distinct', () => {
@@ -18,6 +18,9 @@ describe('repository-qualified dependencies', () => {
     const [plan] = await planUnblockSweep([{number:20,body:'',labels}], async () => 'CLOSED');
     expect(plan.reqLabels).toEqual(labels.slice(1));
     expect(plan.refs).toEqual(['#10','reddb-io/red-skills#10']);
+  });
+  it('holds a local promotion when a qualified dependency was not resolved', () => {
+    expect(decideDependencyPromotion({ number:20, labels, reqs:[{n:10,closed:true}] }).outcome).toBe('held');
   });
   it('does not let a local close cascade erase unresolved remote dependencies', () => {
     expect(planCloseCascade(10,[{number:20,labels,reqs:[{n:10,closed:true}]}])).toEqual([]);

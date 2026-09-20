@@ -295,7 +295,7 @@ jobs:
       # TODO: when #622 lands, the atomic claim CAS replaces the --issues <N>
       # direct invocation with a server-side claim that can't race a local fleet.
       - name: Compose pinned skills
-        run: node scripts/prepare-skills.mjs
+        run: node scripts/prepare-skills.mjs && node scripts/build-pi-packages.mjs
 
       - name: Run the AFK attempt
         if: steps.trust.outputs.gate == 'pass' || steps.trust.outputs.gate == 'bypass'

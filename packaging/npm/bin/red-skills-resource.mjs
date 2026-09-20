@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { cliFrontdoor } from "./cli-frontdoor.mjs";
+cliFrontdoor("red-skills-resource", "<run|read|path> <resource> [args...]");
 // Access extracted helpers by their stable original plugin-relative identifier.
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, resolve, join, sep } from 'node:path';

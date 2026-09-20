@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Compose pinned skills
-        run: node scripts/prepare-skills.mjs
+        run: node scripts/prepare-skills.mjs && node scripts/build-pi-packages.mjs
 
       - name: Check bold imperative lead-in in SKILL.md files
         run: bash scripts/lint-skill-first-line.sh

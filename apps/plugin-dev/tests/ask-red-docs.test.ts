@@ -22,7 +22,7 @@ describe("ask-red router docs contract", () => {
     ]);
 
     expect(manifest.skills).toContain("./skills/engineering/ask-red");
-    expect(rootReadme).toContain("[`ask-red`](./plugins/dev/skills/engineering/ask-red/SKILL.md)");
+    expect(rootReadme).toContain("[`ask-red`](https://github.com/reddb-io/red-skills/blob/main/plugins/dev/skills/engineering/ask-red/SKILL.md)");
     expect(bucketReadme).toContain("**[ask-red](./ask-red/SKILL.md)**");
   });
 

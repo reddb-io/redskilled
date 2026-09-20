@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { cliFrontdoor } from "./cli-frontdoor.mjs";
+cliFrontdoor("red-skills-brain", "[command] [args...]");
 import { verifyRuntime } from "./runtime-compatibility.mjs";
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';

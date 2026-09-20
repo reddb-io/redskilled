@@ -51,7 +51,7 @@ describe("repo invariant guard briefs", () => {
 
     for (const name of ["guard-process-birth", "guard-serialization"]) {
       expect(manifest.skills).toContain(`./skills/engineering/${name}`);
-      expect(rootReadme).toContain(`(${`./plugins/dev/skills/engineering/${name}/SKILL.md`})`);
+      expect(rootReadme).toContain(`(${`https://github.com/reddb-io/red-skills/blob/main/plugins/dev/skills/engineering/${name}/SKILL.md`})`);
       expect(bucketReadme).toContain(`(${`./${name}/SKILL.md`})`);
       expect(router).toContain(`/${name}`);
     }

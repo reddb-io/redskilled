@@ -43,3 +43,18 @@ test('resource reader refuses traversal', () => {
   assert.equal(res.status,2);
  }finally {rmSync(dir,{recursive:true,force:true});}
 });
+test('content accepts compatible runtime patches and refuses a missing or newer major', async () => {
+ const { verifyRuntime } = await import('../packaging/npm/bin/runtime-compatibility.mjs');
+ const dir=fixture();const plugin=join(dir,'content');mkdirSync(plugin);
+ try {
+  writeFileSync(join(plugin,'runtime.toon'),'version: 4.5.0\ncompatible: ^4.5.0\n');
+  for(const version of ['4.5.0','4.5.1','4.6.0']) {
+   writeFileSync(join(dir,'package.json'),JSON.stringify({version}));
+   assert.doesNotThrow(()=>verifyRuntime(dir,{CODEX_PLUGIN_ROOT:plugin}));
+  }
+  for(const version of ['4.4.1','5.0.0','4.5.0-beta.1']) {
+   writeFileSync(join(dir,'package.json'),JSON.stringify({version}));
+   assert.throws(()=>verifyRuntime(dir,{CODEX_PLUGIN_ROOT:plugin}),/Skills require/);
+  }
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});

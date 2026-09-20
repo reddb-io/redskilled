@@ -115,8 +115,8 @@ validate_plugin() {
       # ADR 0147 §2 renamed the dev plugin's adapter `redskilled` -> `rs_dev`
       # (#4023). The LAUNCHER keeps its own filename — it is the same on-demand
       # entry — so only the server name moved, and the assertion follows it.
-      jq -e '.mcpServers["rs_dev"].args[]? | contains("redskilled-mcp.sh")' "$dir/${codex_mcp_path#./}" >/dev/null \
-        || fail "$plugin: rs_dev MCP manifest must use the on-demand launcher"
+      jq -e '.mcpServers["rs_dev"].command == "red-skills-redskilled-mcp" and (.mcpServers["rs_dev"].args | length == 0)' "$dir/${codex_mcp_path#./}" >/dev/null \
+        || fail "$plugin: rs_dev MCP manifest must invoke the preinstalled runtime command"
     fi
   fi
 
@@ -215,36 +215,34 @@ jq -e '.plugins[] | select(.name == "internal" and (.description | test("maintai
   .claude-plugin/marketplace.json >/dev/null \
   || fail "internal: Claude marketplace description must mark it maintainer-only"
 
-validate_dev_fetch_hooks() {
-  local root="$tmp/dev-plugin-root"
-  mkdir -p "$root/.claude-plugin" "$root/.codex-plugin" "$root/hooks"
-
-  printf '{"version":"9.9.9"}\n' > "$root/.claude-plugin/plugin.json"
-  printf '{"version":"9.9.9"}\n' > "$root/.codex-plugin/plugin.json"
-  cat > "$root/hooks/red-fetch.mjs" <<'EOF'
-#!/usr/bin/env node
-console.log(`red-fetch stdout ${process.argv.slice(2).join(" ")}`);
-console.error("red-fetch stderr");
-EOF
-  chmod +x "$root/hooks/red-fetch.mjs"
+validate_dev_installed_hooks() {
+  local root="$tmp/installed-runtime"
+  mkdir -p "$root/bin" "$root/runtime" "$root/dist"
+  cp packaging/npm/bin/*.mjs "$root/bin/"
+  cp packages/build-info/index.mjs "$root/bin/build-info.mjs"
+  cp packaging/npm/package.json "$root/package.json"
+  cp runtime/hook-routes.json "$root/runtime/"
+  touch "$root/dist/redskilled.bundle.min.mjs"
 
   local payload='{"hook_event_name":"SessionStart"}'
-  local cmd out
-
-  cmd="$(jq -r '.hooks.SessionStart[0].hooks[0].command // empty' plugins/dev/hooks/claude.hooks.json)"
-  [[ -n "$cmd" ]] || fail "dev: Claude hooks must run red-fetch on SessionStart"
-  out="$(CLAUDE_PLUGIN_ROOT="$root" bash -lc "$cmd" <<<"$payload")"
-  [[ "$out" == "{}" ]] \
-    || fail "dev: Claude SessionStart hook must print exactly {} after red-fetch"
-
-  cmd="$(jq -r '.hooks.SessionStart[0].hooks[0].command // empty' plugins/dev/hooks/codex.hooks.json)"
-  [[ -n "$cmd" ]] || fail "dev: Codex hooks must run red-fetch on SessionStart"
-  out="$(CODEX_PLUGIN_ROOT="$root" bash -lc "$cmd" <<<"$payload")"
-  [[ "$out" == "{}" ]] \
-    || fail "dev: Codex SessionStart hook must print exactly {} after red-fetch"
+  local host cmd route out
+  for host in claude codex; do
+    cmd="$(jq -r '.hooks.SessionStart[0].hooks[0].command // empty' "plugins/dev/hooks/$host.hooks.json")"
+    route="dev/$host/SessionStart/0"
+    [[ "$cmd" == "red-skills-hook $route" ]] \
+      || fail "dev: $host SessionStart must invoke the installed readiness route"
+    out="$(CLAUDE_PLUGIN_ROOT="$REPO/plugins/dev" CODEX_PLUGIN_ROOT="$REPO/plugins/dev" node "$root/bin/red-skills-hook.mjs" "$route" <<<"$payload")"
+    [[ "$out" == "{}" ]] \
+      || fail "dev: $host SessionStart readiness must print exactly {}"
+  done
+  rm "$root/dist/redskilled.bundle.min.mjs"
+  if node "$root/bin/red-skills-hook.mjs" "$route" <<<"$payload" >"$tmp/missing.out" 2>"$tmp/missing.err"; then
+    fail "dev: incomplete installed runtime must fail readiness"
+  fi
+  [[ ! -s "$tmp/missing.out" ]] || fail "dev: missing runtime must not emit success"
 }
 
-validate_dev_fetch_hooks
+validate_dev_installed_hooks
 
 # Packaged Claude Code agents (plugins/<plugin>/agents/) — only Claude loads
 # them, so we validate frontmatter and ensure the Codex side does not

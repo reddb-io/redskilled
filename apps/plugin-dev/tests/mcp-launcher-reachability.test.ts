@@ -19,7 +19,7 @@ import { describe, expect, it } from "vitest";
 const ROOT = join(import.meta.dirname, "..", "..", "..");
 
 /** A command that resolves its own program needs no path — npm/npx fetch it. */
-const SELF_RESOLVING = ["npx", "npm", "pnpm", "bunx"];
+const SELF_RESOLVING = ["npx", "npm", "pnpm", "bunx", "red-skills-redskilled-mcp", "red-skills-memory", "red-skills-brain"];
 
 /**
  * A candidate that survives a foreign cwd with no plugin-root env var.
@@ -122,7 +122,7 @@ describe("every MCP server resolves from a directory that is not this repo (#318
     const dev = (await declarations()).filter((d) => d.file === "plugins/dev/.mcp.json");
     expect(dev.map((d) => d.server).sort()).toEqual(["rs_dev"]);
     for (const server of dev) {
-      expect(HOME_ANCHORED.test(server.script), `${server.server} lost its $HOME-anchored candidate`).toBe(true);
+      expect(SELF_RESOLVING.includes(server.command) || HOME_ANCHORED.test(server.script), `${server.server} lost its $HOME-anchored candidate`).toBe(true);
     }
   });
 

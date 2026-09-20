@@ -158,7 +158,7 @@ describe("the live tree", () => {
 
     // The field the VS Code marketplace and the .vsix show.
     expect(files).toContain("apps/vscode-extension-redskilled/package.json");
-    expect(files).toContain("plugins/dev/.claude-plugin/plugin.json");
+    expect(files).not.toContain("plugins/dev/.claude-plugin/plugin.json");
   });
 
   it("uses the root manifest the Release standard reads as its version anchor", () => {

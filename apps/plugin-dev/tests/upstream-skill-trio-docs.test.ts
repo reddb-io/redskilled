@@ -29,7 +29,7 @@ describe("upstream skill trio docs contract", () => {
     ]) {
       const name = basename(skillPath);
       expect(manifest.skills).toContain(skillPath);
-      expect(rootReadme).toContain(`[\`${name}\`](./plugins/dev/${skillPath.slice(2)}/SKILL.md)`);
+      expect(rootReadme).toContain(`[\`${name}\`](https://github.com/reddb-io/red-skills/blob/main/plugins/dev/${skillPath.slice(2)}/SKILL.md)`);
       expect(askRed).toContain(`/${name}`);
     }
 

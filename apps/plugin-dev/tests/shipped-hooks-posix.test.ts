@@ -234,7 +234,7 @@ describe("shipped hooks run under bash, wrappers stay POSIX", () => {
       }
     }
     expect(offenders).toEqual([]);
-    expect(wrappers).toBeGreaterThan(5);
+    expect(wrappers).toBe(0); // Manifests invoke installed commands; shell belongs to runtime helpers.
   });
 
   it("runs every shipped hook with `sh` pointing at dash", () => {

@@ -19,6 +19,7 @@
 //
 // Exit codes: 0 success; 1 drift detected; 2 usage error.
 
+import { existsSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -116,7 +117,7 @@ async function stagePackage({ root, pluginDir, claudePlugin, packagingDir, misma
 
   const definitionEntries = await listDefinitionEntries(pluginRoot);
   const packageJson = buildNpmPackageJson(claudePlugin, definitionEntries);
-  if (!process.env.RED_BUILD_VERSION && !process.env.RED_RELEASE_VERSION) {
+  if (!process.env.RED_BUILD_VERSION && !process.env.RED_RELEASE_VERSION && existsSync(join(root, "package.json"))) {
     packageJson.version = (await readJson(join(root, "package.json"))).version;
   }
   const buckets = deriveBucketList(claudePlugin.skills);

@@ -64,3 +64,4 @@ apps/*/out/
 /packaging/npm/scripts/install-*
 /packaging/npm/scripts/check-skills-boundary.mjs
 /packaging/npm/scripts/lib/
+/packaging/npm/bin/build-info.mjs

@@ -1,11 +1,11 @@
 bundle: .github/red-skills/release.bundle.mjs
-bundleSha256: e266dfc4f5395297a49314c9daf0237071025846ebda48f1f17b18406d93dcc6
-bundleBytes: 353957
-sourceTreeSha256: 169f535c71cf0e53ee798ea1d52e08f91e47adf5af089b16fd45c3f43e73a9fb
+bundleSha256: 4b1c7a15b0d37c37cfdfbe717a7a49affec95ce0a11184671bcdc1c1cd6d0af5
+bundleBytes: 354133
+sourceTreeSha256: 6e1e830c18eb7b1bdd7db16caf798e8ba23edf9411011a773b355706c9904429
 refreshCommand: "pnpm -C apps/release vendor:refresh"
 toolchain:
   esbuild: 0.24.2
-  node: v24.18.0
+  node: v24.15.0
 sources[30]{path,sha256}:
   apps/release/src/changeset-queue.ts,a6d036a332ba769f3469207cf1d3b4764a5e637b1f1ed13716be16afb22b6c98
   apps/release/src/cli.ts,3d5aa562b504b60e4775e2daa910f19144f60e1dfb13ad773cd039af48bebf18
@@ -28,7 +28,7 @@ sources[30]{path,sha256}:
   packages/github/balance.ts,d62421d5a2ade607a65148bad3d46a4267fd917d06e745dd5a3eedd3375f296d
   packages/github/budget-gate.ts,87e81dd321369e9b4e2749c294d0b21a03ab1fa9bb16748265af5f120a1a8758
   packages/github/cache.ts,e2eb37781b707327d8b9ddebde8fc2e115805fc04c40a66576c5b61c42bd1232
-  packages/github/conditional-client.ts,0857a702a948a99558be02b8416a774981c0d18cb7570bc15f1374b444b1f503
+  packages/github/conditional-client.ts,c6af11b300c1a4543454c37cbd1d1d8dedeeddb22fa02aa513f6224a960529ab
   packages/github/deadline.ts,a043f5f2706b1ccfd14b184fd9596bb93cf9d2409a605bb51380784dfa41137a
   packages/github/index.ts,533eeccb21f7e0bfc84c178a1d7afe513220c6f4c40b0925d49e7bbb0c289b57
   packages/github/rest-plan.ts,a4fdd29d13c53d884443e2a6afc9aea79c80ab31e9e296c0dbed915eaead1806

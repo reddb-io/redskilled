@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { cliFrontdoor } from "./cli-frontdoor.mjs";
+cliFrontdoor("red-skills-hook", "<plugin/host/event/route>");
 import { verifyRuntime } from "./runtime-compatibility.mjs";
 import { readFileSync, existsSync, realpathSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -8,7 +10,7 @@ import { pluginBundle } from './runtime-paths.mjs';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 try { verifyRuntime(root); } catch (error) { console.error(error.message); process.exit(1); }
 const routes = JSON.parse(readFileSync(join(root, 'runtime/hook-routes.json'), 'utf8'));
-const route = routes[process.argv[2]];
+const route = routes[process.argv.slice(2)[0]];
 if (!route) { console.error('red-skills-hook: unknown hook route'); process.exit(2); }
 const timeout = Math.max(100, Number.parseFloat(process.env.RED_SKILLS_HOOK_TIMEOUT_S || '3') * 1000);
 let input = '', ended = false;

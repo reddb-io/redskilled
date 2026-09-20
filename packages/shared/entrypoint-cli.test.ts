@@ -8,7 +8,7 @@ import {
   resolveLauncherChannel,
 } from "./entrypoint-cli.js";
 
-const DEFAULT_REPO = "reddb-io/red-skills";
+const DEFAULT_REPO = "reddb-io/redskilled";
 
 describe("gatePluginName (ADR 0067)", () => {
   it("maps code-nav to dev (code-nav ships under the dev plugin)", () => {

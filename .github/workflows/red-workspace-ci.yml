@@ -62,7 +62,7 @@ jobs:
           fetch-depth: 0
 
       - name: Compose pinned skills
-        run: node scripts/prepare-skills.mjs
+        run: node scripts/prepare-skills.mjs && node scripts/build-pi-packages.mjs
 
       - name: Compute affected cone
         id: compute
@@ -101,7 +101,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Compose pinned skills
-        run: node scripts/prepare-skills.mjs
+        run: node scripts/prepare-skills.mjs && node scripts/build-pi-packages.mjs
 
       - name: Test workflow security pins
         run: scripts/test-workflow-security-pins.sh
@@ -175,7 +175,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Compose pinned skills
-        run: node scripts/prepare-skills.mjs
+        run: node scripts/prepare-skills.mjs && node scripts/build-pi-packages.mjs
 
       - if: env.RUN_ANY == 'true'
         uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
@@ -259,7 +259,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Compose pinned skills
-        run: node scripts/prepare-skills.mjs
+        run: node scripts/prepare-skills.mjs && node scripts/build-pi-packages.mjs
 
       - if: env.RUN_DEV == 'true'
         uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
@@ -339,7 +339,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Compose pinned skills
-        run: node scripts/prepare-skills.mjs
+        run: node scripts/prepare-skills.mjs && node scripts/build-pi-packages.mjs
 
       - if: env.RUN_ANY == 'true'
         uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
@@ -399,7 +399,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Compose pinned skills
-        run: node scripts/prepare-skills.mjs
+        run: node scripts/prepare-skills.mjs && node scripts/build-pi-packages.mjs
 
       - if: env.RUN_ACP == 'true'
         uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa

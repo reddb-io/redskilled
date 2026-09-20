@@ -152,7 +152,7 @@ if (!existsSync(readmePath)) {
   fail("root README.md is missing");
 } else {
   const readme = readFileSync(readmePath, "utf8");
-  if (!readme.includes(`./plugins/${plugin}/`)) {
+  if (!readme.includes(`./plugins/${plugin}/`) && !readme.includes(`https://github.com/reddb-io/red-skills/tree/main/plugins/${plugin}/`)) {
     fail("root README must list shipped plugin with a ./plugins/<plugin>/ link");
   }
 }

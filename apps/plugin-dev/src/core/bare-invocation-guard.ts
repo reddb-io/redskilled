@@ -49,7 +49,7 @@
 //     an instruction segment rather than only at its head, because the whole
 //     point is that no prefix rescues it.
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 /** The canonical invocation prefix every shipped binary rides (ADR 0091). */
@@ -489,9 +489,14 @@ export function scanSweptDocuments(
   repoRoot: string,
   roots: readonly string[] = DOC_SWEEP_ROOTS,
 ): BareInvocationSite[] {
-  return sweptDocuments(repoRoot, roots).flatMap((path) =>
-    findBareInvocations(path, readFileSync(join(repoRoot, ...path.split("/")), "utf8")),
-  );
+  return sweptDocuments(repoRoot, roots).flatMap((path) => {
+    const sites = findBareInvocations(path, readFileSync(join(repoRoot, ...path.split("/")), "utf8"));
+    const pluginRoot = /^(plugins\/[^/]+|packaging\/pi\/[^/]+)\//.exec(path)?.[1];
+    if (pluginRoot && existsSync(join(repoRoot, pluginRoot, "runtime.toon"))) {
+      return sites.filter(site => !["red-skills-memory", "red-skills-brain", "red-skills-redskilled", "red-skills-code-nav", "red-skills-redskilled-mcp"].includes(site.binary));
+    }
+    return sites;
+  });
 }
 
 /** Every retired-entrypoint command across the swept surfaces. */

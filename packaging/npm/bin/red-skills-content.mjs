@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { cliFrontdoor } from "./cli-frontdoor.mjs";
+cliFrontdoor("red-skills-content", "<--check|--generate> <content checkout>");
 import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

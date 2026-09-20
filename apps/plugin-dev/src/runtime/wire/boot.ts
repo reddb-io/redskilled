@@ -586,7 +586,7 @@ export async function buildBootDeps(
       // undefined on a miss. undefined-on-miss exactly matches the prior
       // 404→undefined→not-closed semantics — a missing blocker stays
       // "open-or-unknown" and the dependent issue is NOT promoted.
-      blockerState: async (issue, repo) => repo ? ghx.blockerState({ ...ghCtx, repo }, issue) : issueStates.get(issue)?.state,
+      blockerState: blockerLookup(ghCtx, issueStates),
       straggler: {
         unlabeled: () => ghx.countUnlabeled(ghCtx),
         needsTriage: () => ghx.countNeedsTriage(ghCtx),
@@ -752,5 +752,12 @@ export function buildMinimalBootDeps(ctx: RepoContext, nowS: number): BootDeps {
     },
     nowS,
     docsSweepLander: async () => unreachable(),
+  };
+}
+
+function blockerLookup(context: GhContext, states: Map<number, IssueStateRow>) {
+  return async (issue: number, repo?: string): Promise<string | undefined> => {
+    if (repo) return ghx.blockerState({ ...context, repo }, issue);
+    return states.get(issue)?.state;
   };
 }

@@ -15,3 +15,11 @@ publication. Canonical skills and marketplace content live in `reddb-io/red-skil
 - Issues about this software belong to `reddb-io/redskilled`. Use qualified issue
   references across repositories.
 - Validate changes with focused tests and the package rehearsal before publishing.
+
+**ask-red maintenance rule:** any skill add, rename, removal, or flow change
+must re-check `plugins/dev/skills/engineering/ask-red/SKILL.md` in the composed
+content; apply edits to its source in RedSkills. Use `writing-for-agents` when
+editing agent instructions.
+
+For Worker creation, read [guard-process-birth](plugins/dev/skills/engineering/guard-process-birth/SKILL.md).
+For structured state or wires, read [guard-serialization](plugins/dev/skills/engineering/guard-serialization/SKILL.md).

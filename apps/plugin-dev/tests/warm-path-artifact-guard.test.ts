@@ -77,7 +77,7 @@ describe("the shipped warm path knows every bundle it is supposed to warm", () =
 
     for (const hook of HOOK_DEFINITIONS) {
       const path = join(REPO_ROOT, "plugins", "dev", "hooks", hook);
-      expect(readFileSync(path, "utf8"), path).toContain(`node \\"$f\\" ${DEV_WARM_BUNDLE} \\"$ver\\"`);
+      expect(readFileSync(path, "utf8"), path).toContain("red-skills-hook dev/");
     }
   });
 

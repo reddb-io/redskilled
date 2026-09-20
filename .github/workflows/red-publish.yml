@@ -73,7 +73,7 @@ jobs:
           fetch-tags: true
 
       - name: Compose pinned skills
-        run: node scripts/prepare-skills.mjs
+        run: node scripts/prepare-skills.mjs && node scripts/build-pi-packages.mjs
 
       - name: Resolve the release tag
         id: target
@@ -747,6 +747,7 @@ jobs:
             }
             tar -czf "$payload" "plugins/$plugin"
           done < <(node scripts/workstation-package-set.mjs --plugin-payloads)
+          node packaging/npm/scripts/prepare.mjs
           tar -czf dist/runtime-entrypoints.tgz -C packaging/npm bin package.json -C ../.. runtime
           tar -czf dist/marketplace-manifests.tgz \
             .claude-plugin/marketplace.json \

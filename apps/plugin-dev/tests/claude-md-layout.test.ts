@@ -21,7 +21,7 @@ const REPO_ROOT = join(import.meta.dirname, "..", "..", "..");
  * lives, and folding it in would trade a precise guarantee for a vague one.
  */
 function layoutPaths(markdown: string): readonly string[] {
-  const start = markdown.indexOf("red-skills/");
+  const start = markdown.indexOf("\nredskilled/");
   const block = markdown.slice(start, markdown.indexOf("```", start));
   const out: string[] = [];
   let section: string | null = null;

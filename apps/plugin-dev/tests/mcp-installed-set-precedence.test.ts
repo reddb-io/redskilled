@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, chmod, symlink, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -35,6 +35,16 @@ describe("Plugin MCP launchers prefer red-dev's verified current package set", (
         await readFile(join(ROOT, "plugins", plugin, ".mcp.json"), "utf8"),
       ) as { mcpServers: Record<string, { command: string; args: string[] }> };
       const declaration = Object.values(manifest.mcpServers)[0];
+      const setRoot = join(home, ".red/skills/current");
+      await cp(join(ROOT, "packaging/npm/bin"), join(setRoot, "bin"), { recursive: true });
+      await cp(join(ROOT, "packages/build-info/index.mjs"), join(setRoot, "bin/build-info.mjs"));
+      await mkdir(join(setRoot, "dist"), { recursive: true });
+      const bundle = plugin === "dev" ? "redskilled-mcp" : `${plugin}-mcp`;
+      await writeFile(join(setRoot, `dist/${bundle}.bundle.min.mjs`), `process.stdout.write("current-${plugin}\\n")`);
+      const shim = join(setRoot, "bin", declaration.command);
+      await symlink(`${declaration.command}.mjs`, shim);
+      await chmod(join(setRoot, "bin", `${declaration.command}.mjs`), 0o755);
+
       const launched = spawnSync(declaration.command, declaration.args, {
         cwd,
         encoding: "utf8",
@@ -43,6 +53,7 @@ describe("Plugin MCP launchers prefer red-dev's verified current package set", (
           CLAUDE_PLUGIN_ROOT: "",
           CODEX_PLUGIN_ROOT: "",
           HOME: home,
+          PATH: `${join(setRoot, "bin")}:${process.env.PATH}`,
         },
       });
       await rm(sandbox, { force: true, recursive: true });

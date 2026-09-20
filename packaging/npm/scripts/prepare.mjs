@@ -9,7 +9,7 @@
  * partial supporting-runtime build can still pack — the pre-publish contract
  * check is the gate that every required core surface actually resolves.
  */
-import { cpSync, chmodSync, copyFileSync, existsSync, mkdirSync, rmSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, cpSync, chmodSync, copyFileSync, existsSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -84,3 +84,9 @@ if (staged === 0) {
 
 rmSync(join(pkgRoot, "runtime"), { recursive: true, force: true });
 cpSync(join(repoRoot, "runtime"), join(pkgRoot, "runtime"), { recursive: true });
+
+// Plain-ESM entrypoints share the same build-info implementation as bundled apps.
+const stamp = JSON.parse(readFileSync(join(pkgRoot, "package.json"), "utf8"));
+const definitions = { __RED_BUILD_VERSION__: stamp.version, __RED_BUILD_GIT_SHA__: process.env.RED_BUILD_GIT_SHA || "unknown", __RED_BUILD_TIME__: process.env.RED_BUILD_TIME || "unknown", __RED_BUNDLE_ASSET__: "npm-entrypoints" };
+const prefix = Object.entries(definitions).map(([key, value]) => `const ${key} = ${JSON.stringify(value)};`).join("\n");
+writeFileSync(join(pkgRoot, "bin/build-info.mjs"), prefix + "\n" + readFileSync(join(repoRoot, "packages/build-info/index.mjs"), "utf8"));

@@ -40,3 +40,28 @@ extracted from the content repository. `red-skills-hook` owns host hook behavior
 The existing publisher now belongs here. `REDSKILLED_PUBLISH_ENABLED` remains off
 until the old publisher is disabled and credentials, signing and consumers have
 passed the migration checks. See [migration/README.md](migration/README.md).
+
+## Plugin content
+
+- [Dev](https://github.com/reddb-io/red-skills/tree/main/plugins/dev/)
+- [Memory](https://github.com/reddb-io/red-skills/tree/main/plugins/memory/)
+- [Brain](https://github.com/reddb-io/red-skills/tree/main/plugins/brain/)
+- [Internal](https://github.com/reddb-io/red-skills/tree/main/plugins/internal/)
+
+Example policy, not a default: create manual worktrees with
+`git worktree add .red/tmp/worktrees/manual/<slug> -b <branch> origin/main`.
+Repository command guards remain configured by the consuming project.
+
+For skill routing use [`ask-red`](https://github.com/reddb-io/red-skills/blob/main/plugins/dev/skills/engineering/ask-red/SKILL.md).
+Other maintainer interfaces: [`what`](https://github.com/reddb-io/red-skills/blob/main/plugins/dev/skills/productivity/what/SKILL.md),
+[`wizard`](https://github.com/reddb-io/red-skills/blob/main/plugins/dev/skills/engineering/wizard/SKILL.md),
+[`to-questionnaire`](https://github.com/reddb-io/red-skills/blob/main/plugins/dev/skills/productivity/to-questionnaire/SKILL.md),
+and [`writing-for-agents`](https://github.com/reddb-io/red-skills/blob/main/plugins/dev/skills/productivity/writing-for-agents/SKILL.md).
+
+[`guard-process-birth`](https://github.com/reddb-io/red-skills/blob/main/plugins/dev/skills/engineering/guard-process-birth/SKILL.md)
+
+[`guard-serialization`](https://github.com/reddb-io/red-skills/blob/main/plugins/dev/skills/engineering/guard-serialization/SKILL.md)
+
+[`redskilled`](https://github.com/reddb-io/red-skills/blob/main/plugins/dev/skills/engineering/redskilled/SKILL.md)
+
+Personal facts belong in Brain, not Memory. Memory is not the Personal-fact store.
