@@ -21,6 +21,7 @@ concurrency:
 
 jobs:
   build-apk:
+    if: github.event_name == 'pull_request' || vars.REDSKILLED_PUBLISH_ENABLED == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -111,7 +112,7 @@ jobs:
           retention-days: 3
 
   attach-release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: vars.REDSKILLED_PUBLISH_ENABLED == 'true' && startsWith(github.ref, 'refs/tags/v')
     needs: build-apk
     runs-on: ubuntu-latest
     permissions:

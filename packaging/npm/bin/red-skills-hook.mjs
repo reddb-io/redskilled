@@ -1,10 +1,12 @@
 #!/usr/bin/env node
+import { verifyRuntime } from "./runtime-compatibility.mjs";
 import { readFileSync, existsSync, realpathSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { pluginBundle } from './runtime-paths.mjs';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+try { verifyRuntime(root); } catch (error) { console.error(error.message); process.exit(1); }
 const routes = JSON.parse(readFileSync(join(root, 'runtime/hook-routes.json'), 'utf8'));
 const route = routes[process.argv[2]];
 if (!route) { console.error('red-skills-hook: unknown hook route'); process.exit(2); }

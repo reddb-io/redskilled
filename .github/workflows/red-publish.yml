@@ -747,7 +747,7 @@ jobs:
             }
             tar -czf "$payload" "plugins/$plugin"
           done < <(node scripts/workstation-package-set.mjs --plugin-payloads)
-          tar -czf dist/runtime-entrypoints.tgz -C packaging/npm bin -C ../.. runtime
+          tar -czf dist/runtime-entrypoints.tgz -C packaging/npm bin package.json -C ../.. runtime
           tar -czf dist/marketplace-manifests.tgz \
             .claude-plugin/marketplace.json \
             .agents/plugins/marketplace.json \

@@ -26,7 +26,7 @@ import { fileURLToPath } from "node:url";
  * tarball packed from the wrong `-C` fails the release instead of the operator.
  */
 export const WORKSTATION_PAYLOADS = [
-  { asset: "dist/runtime-entrypoints.tgz", kind: "runtime-bundle", expandsTo: ["bin", "runtime"] },
+  { asset: "dist/runtime-entrypoints.tgz", kind: "runtime-bundle", expandsTo: ["bin", "runtime", "package.json"] },
   // The four plugin definition trees every host registers. Without them a
   // network-denied expansion yields runtimes with nothing to run.
   { asset: "dist/plugin-dev.payload.tgz", kind: "plugin-payload", expandsTo: ["plugins/dev"] },

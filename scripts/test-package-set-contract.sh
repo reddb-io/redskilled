@@ -414,6 +414,7 @@ pass "the schema is documented beside the verifier"
 # release must be restated by whoever changed it. `--version 9.9.9` resolves the
 # one version-stamped asset without pinning this test to a release.
 expected_workstation=(
+  dist/runtime-entrypoints.tgz
   dist/plugin-dev.payload.tgz
   dist/plugin-memory.payload.tgz
   dist/plugin-brain.payload.tgz
@@ -565,6 +566,7 @@ tar -czf "$set_dir/gemini-extension.tgz" -C "$tmp" gemini
 for plugin in dev memory brain internal; do
   tar -czf "$set_dir/plugin-$plugin.payload.tgz" -C "$ROOT" "plugins/$plugin"
 done
+tar -czf "$set_dir/runtime-entrypoints.tgz" -C "$ROOT/packaging/npm" bin package.json -C "$ROOT" runtime
 tar -czf "$set_dir/marketplace-manifests.tgz" -C "$ROOT" \
   .claude-plugin/marketplace.json \
   .agents/plugins/marketplace.json \

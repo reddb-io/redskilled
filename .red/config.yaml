@@ -126,6 +126,7 @@ release:
   execution: vendored
   version_surfaces:
     - { path: package.json, format: npm }
+    - { path: packaging/npm/package.json, format: npm }
     - { path: apps/worker-container/package.json, format: npm }
     - { path: benchmarks/code-understanding/package.json, format: npm }
     - { path: benchmarks/memory/package.json, format: npm }

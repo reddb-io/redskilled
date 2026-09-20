@@ -45,8 +45,8 @@ export const VERSION_ANCHOR: string = "package.json";
  */
 export const EXTRA_VERSION_ROOTS: readonly { readonly glob: string; readonly why: string }[] = [
   {
-    glob: "plugins/*",
-    why: "plugin definitions ship as Pi packages, not as pnpm workspace members, so the Release standard declares their package manifests as extra Version surfaces",
+    glob: "packaging/npm",
+    why: "the core npm package is outside the workspace; plugin content is independently versioned and its published packages receive the runtime version at staging",
   },
 ];
 
@@ -59,7 +59,7 @@ export const EXTRA_VERSION_ROOTS: readonly { readonly glob: string; readonly why
  */
 export const SCOPE_EXEMPTIONS: readonly { readonly name: string; readonly why: string }[] = [
   {
-    name: "red-skills",
+    name: "redskilled",
     why: "the pnpm workspace root is private and unscoped by convention, and `@reddb-io/red-skills` is already apps/host-opencode — the package the docs invoke as `npx -y -p @reddb-io/red-skills@<version>`",
   },
   {

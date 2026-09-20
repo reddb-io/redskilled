@@ -1,9 +1,11 @@
 #!/usr/bin/env node
+import { verifyRuntime } from "./runtime-compatibility.mjs";
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pluginBundle } from './runtime-paths.mjs';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+try { verifyRuntime(root); } catch (error) { console.error(error.message); process.exit(1); }
 const args = process.argv.slice(2);
 try {
   const mcp = args[0] === 'mcp';

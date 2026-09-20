@@ -173,8 +173,8 @@ validate_plugin() {
   [ -f "$npm_pkg" ] \
     || fail "$plugin: staged Pi npm package missing: $npm_pkg"
   jq -e --slurp '.[0].version == .[1].version' \
-    "$dir/.claude-plugin/plugin.json" "$npm_pkg" >/dev/null \
-    || fail "$plugin: $npm_pkg version must match Claude/Codex manifests"
+    package.json "$npm_pkg" >/dev/null \
+    || fail "$plugin: $npm_pkg version must match the runtime distribution"
   jq -e '.publishConfig.access == "public"' "$npm_pkg" >/dev/null \
     || fail "$plugin: $npm_pkg publishConfig.access must be public"
   jq -e --arg plugin "$plugin" \

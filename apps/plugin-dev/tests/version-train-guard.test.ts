@@ -45,8 +45,8 @@ describe("version-train discovery (#3082)", () => {
     expect(globs).toContain("packages/*");
   });
 
-  it("sweeps the plugin definitions too — they are on the train but not in the workspace", () => {
-    expect(EXTRA_VERSION_ROOTS.map((root) => root.glob)).toContain("plugins/*");
+  it("sweeps the core distribution without absorbing independently versioned content", () => {
+    expect(EXTRA_VERSION_ROOTS.map((root) => root.glob)).toContain("packaging/npm");
     for (const root of EXTRA_VERSION_ROOTS) expect(root.why.trim().length).toBeGreaterThan(20);
   });
 
@@ -56,7 +56,8 @@ describe("version-train discovery (#3082)", () => {
     expect(paths).toContain("package.json");
     expect(paths).toContain("apps/plugin-dev/package.json");
     expect(paths).toContain("packages/shared/package.json");
-    expect(paths).toContain("plugins/dev/package.json");
+    expect(paths).not.toContain("plugins/dev/package.json");
+    expect(paths).toContain("packaging/npm/package.json");
     // The two surfaces the defect was measured on.
     expect(paths).toContain("apps/vscode-extension-redskilled/package.json");
     expect(paths).toContain("apps/herdr-plugin-redskilled/package.json");

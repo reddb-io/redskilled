@@ -89,7 +89,7 @@ function buildNpmPackageJson(claudePlugin, definitionEntries) {
   // claudePlugin.version would publish a stale version and fail the "Smoke
   // published Pi packages" step. Absent the env (local build / --check), fall
   // back to the manifest version.
-  const releaseVersion = process.env.RED_BUILD_VERSION?.replace(/^v/, "").trim();
+  const releaseVersion = (process.env.RED_BUILD_VERSION ?? process.env.RED_RELEASE_VERSION)?.replace(/^v/, "").trim();
   return {
     ...publishable,
     ...(releaseVersion ? { version: releaseVersion } : {}),
@@ -116,6 +116,9 @@ async function stagePackage({ root, pluginDir, claudePlugin, packagingDir, misma
 
   const definitionEntries = await listDefinitionEntries(pluginRoot);
   const packageJson = buildNpmPackageJson(claudePlugin, definitionEntries);
+  if (!process.env.RED_BUILD_VERSION && !process.env.RED_RELEASE_VERSION) {
+    packageJson.version = (await readJson(join(root, "package.json"))).version;
+  }
   const buckets = deriveBucketList(claudePlugin.skills);
 
   if (buckets.length === 0) {
