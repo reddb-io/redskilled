@@ -72,6 +72,7 @@ export const WORKSTATION_PAYLOADS = [
   // The host-scoped daemon (ADR 0130).
   { asset: "dist/redskilled.bundle.min.mjs", kind: "daemon" },
   { asset: "dist/redskilled-web.bundle.min.mjs", kind: "companion-surface" },
+  { asset: "dist/redskilled-tray-runtime.tgz", kind: "companion-surface" },
   // The prompt host's statusline renderer, split out of the daemon bundle so a
   // per-render invocation does not pay the daemon's import-time initialization.
   { asset: "dist/statusline.bundle.min.mjs", kind: "daemon" },

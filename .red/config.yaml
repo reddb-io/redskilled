@@ -139,6 +139,7 @@ release:
     - { path: apps/mcp-browser/package.json, format: npm }
     - { path: apps/redskilled/package.json, format: npm }
     - { path: apps/redskilled-web/package.json, format: npm }
+    - { path: apps/redskilled-tray-runtime/package.json, format: npm }
     - { path: apps/redskilled-link/package.json, format: npm }
     - { path: apps/redskilled-mobile/package.json, format: npm }
     - { path: apps/release/package.json, format: npm }

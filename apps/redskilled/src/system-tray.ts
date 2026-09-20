@@ -7,17 +7,15 @@
  * control plane.
  */
 import { spawn, type ChildProcess } from "node:child_process";
-import { chmod, mkdir } from "node:fs/promises";
+import { chmod } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { redskilledHomeDir } from "@reddb-io/shared/redskilled-home.js";
-// Copied byte-for-byte from reddb-io/design-system's published platform asset.
-import redDbIconDataUrl from "../assets/reddb-icon-192.png";
+import redDbIconDataUrl from "./reddb-icon.generated.js";
 
 const SYSTRAY_PACKAGE = "systray2";
-const SYSTRAY_VERSION = "2.1.4";
 const STATUS_ITEM = 0;
 const DASHBOARD_ITEM = 1;
 const PAIR_ITEM = 2;
@@ -93,7 +91,7 @@ function supportsRedskilledSystemTray(
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
   if (env.REDSKILLED_TRAY === "0") return false;
-  if (platform === "darwin") return true;
+  if (platform === "darwin" || platform === "win32") return true;
   return platform === "linux" && Boolean(env.DISPLAY);
 }
 
@@ -236,75 +234,41 @@ async function loadSystrayRuntime(options: {
   readonly signal: AbortSignal;
 }): Promise<SystrayConstructor | null> {
   const root = join(redskilledHomeDir(options.homeDir ?? homedir()), "runtime", "tray");
-  const packageRoot = join(root, "node_modules", SYSTRAY_PACKAGE);
-  if (!existsSync(join(packageRoot, "package.json"))) {
-    await mkdir(root, { recursive: true, mode: 0o700 });
-    options.log?.("installing the system tray runtime for this user");
-    const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-    const installed = await runHelper(npm, [
-      "install",
-      "--prefix", root,
-      "--no-save",
-      "--no-package-lock",
-      "--no-audit",
-      "--no-fund",
-      `${SYSTRAY_PACKAGE}@${SYSTRAY_VERSION}`,
-    ], options.env, options.signal);
-    if (!installed) return null;
+  const packageRoot = resolveSystrayPackageRoot(root);
+  if (packageRoot == null) {
+    options.log?.("system tray runtime is not installed; run the Redskilled installer again");
+    return null;
   }
   const binary = join(
     packageRoot,
     "traybin",
-    process.platform === "darwin" ? "tray_darwin_release" : "tray_linux_release",
+    process.platform === "darwin"
+      ? "tray_darwin_release"
+      : process.platform === "win32"
+        ? "tray_windows_release.exe"
+        : "tray_linux_release",
   );
   await chmod(binary, 0o755).catch(() => undefined);
-  const runtimeRequire = createRequire(join(root, "package.json"));
-  const loaded = runtimeRequire(SYSTRAY_PACKAGE) as { readonly default?: SystrayConstructor } | SystrayConstructor;
+  const runtimeRequire = createRequire(join(packageRoot, "package.json"));
+  const loaded = runtimeRequire(packageRoot) as { readonly default?: SystrayConstructor } | SystrayConstructor;
   return typeof loaded === "function" ? loaded : loaded.default ?? null;
 }
 
-/** npm is a runtime installer helper. It is never admitted or tracked as a Worker. */
-function runHelper(
-  command: string,
-  args: readonly string[],
-  env: NodeJS.ProcessEnv,
-  signal: AbortSignal,
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (signal.aborted) {
-      resolve(false);
-      return;
-    }
-    let child: ChildProcess;
-    try {
-      child = spawn(command, args, { env, stdio: "ignore", windowsHide: true });
-    } catch {
-      resolve(false);
-      return;
-    }
-    let settled = false;
-    const finish = (installed: boolean): void => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      signal.removeEventListener("abort", abort);
-      resolve(installed);
-    };
-    const abort = (): void => {
-      try { child.kill("SIGTERM"); } catch { /* already gone */ }
-      finish(false);
-    };
-    const timeout = setTimeout(abort, 120_000);
-    timeout.unref();
-    signal.addEventListener("abort", abort, { once: true });
-    child.once("error", () => finish(false));
-    child.once("exit", (code) => finish(code === 0));
-  });
+function resolveSystrayPackageRoot(runtimeRoot: string): string | null {
+  const installed = join(runtimeRoot, "node_modules", SYSTRAY_PACKAGE);
+  if (existsSync(join(installed, "package.json"))) return installed;
+  try {
+    const runtimeRequire = createRequire(process.argv[1] ?? import.meta.url);
+    return dirname(runtimeRequire.resolve(`${SYSTRAY_PACKAGE}/package.json`));
+  } catch {
+    return null;
+  }
 }
 
 function openDashboardBrowser(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): void {
   const url = "https://localhost:25051";
   if (platform === "darwin") { detach("open", [url], env); return; }
+  if (platform === "win32") { detach("cmd.exe", ["/d", "/s", "/c", "start", "", url], env); return; }
   detach("xdg-open", [url], env);
 }
 
@@ -315,6 +279,16 @@ function openPairTerminal(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): vo
   if (platform === "darwin") {
     const shellCommand = command.map(shellQuote).join(" ");
     detach("osascript", ["-e", `tell application "Terminal" to do script ${JSON.stringify(shellCommand)}`], env);
+    return;
+  }
+  if (platform === "win32") {
+    const child = spawn(process.execPath, [...process.execArgv, entry, "web", "pair"], {
+      detached: true,
+      env,
+      stdio: "ignore",
+      windowsHide: false,
+    });
+    child.unref();
     return;
   }
   const terminals: readonly [string, readonly string[]][] = [

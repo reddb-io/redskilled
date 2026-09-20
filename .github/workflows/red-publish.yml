@@ -749,6 +749,9 @@ jobs:
           done < <(node scripts/workstation-package-set.mjs --plugin-payloads)
           node packaging/npm/scripts/prepare.mjs
           tar -czf dist/runtime-entrypoints.tgz -C packaging/npm bin package.json -C ../.. runtime
+          rm -rf dist/redskilled-tray-runtime
+          pnpm --filter @reddb-io/redskilled-tray-runtime deploy --legacy --prod dist/redskilled-tray-runtime
+          tar -czf dist/redskilled-tray-runtime.tgz -C dist/redskilled-tray-runtime .
           tar -czf dist/marketplace-manifests.tgz \
             .claude-plugin/marketplace.json \
             .agents/plugins/marketplace.json \

@@ -439,6 +439,7 @@ expected_workstation=(
   dist/rsp-core.bundle.min.mjs
   dist/redskilled.bundle.min.mjs
   dist/redskilled-web.bundle.min.mjs
+  dist/redskilled-tray-runtime.tgz
   dist/statusline.bundle.min.mjs
   dist/redskilled-link.bundle.min.mjs
   dist/herdr-plugin-red-skills.bundle.min.mjs
@@ -491,6 +492,7 @@ require_member "Gemini generated-path validator" dist/validate-gemini-extension.
 require_member "Hermes local surface" dist/install-hermes-skills.mjs
 require_member "redskilled daemon" dist/redskilled.bundle.min.mjs
 require_member "Redskilled web companion" dist/redskilled-web.bundle.min.mjs
+require_member "Redskilled tray runtime" dist/redskilled-tray-runtime.tgz
 require_member "Herdr plugin" dist/herdr-plugin-red-skills.bundle.min.mjs
 require_member "VS Code extension" dist/vscode-extension-red-skills-9.9.9.vsix
 require_member "Zellij integration" dist/zellij-dashboard.tgz

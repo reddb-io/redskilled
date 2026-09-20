@@ -9,6 +9,7 @@
  */
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { encode as encodeToon } from "@reddb-io/toon";
 import { parseFlags } from "@reddb-io/shared/args.js";
 import { readBuildInfo } from "@reddb-io/build-info";
@@ -120,11 +121,14 @@ export async function runProvision(
         }),
       })
     : undefined;
+  const unitActivation = unit != null && io.configHome == null && paths.platform === "linux"
+    ? activateRedskilledUserUnit()
+    : undefined;
   // The HTTPS dashboard is a separate companion process, installed in the
   // same provisioning pass but never loaded into the daemon. Unit-injected
   // tests own a synthetic service manager and deliberately skip this real
   // host side effect.
-  const webUnit = !values.check && !values["no-unit"] && io.configHome == null
+  const webUnit = !values.check && !values["no-unit"] && io.configHome == null && paths.platform === "linux"
     ? await installRedskilledWebUnit()
     : undefined;
 
@@ -156,11 +160,24 @@ export async function runProvision(
     socket: facts.socketPath,
     ...(startError == null ? {} : { start_error: startError }),
     ...(unit == null ? {} : { unit: { path: unit.path, status: unit.status } }),
+    ...(unitActivation == null ? {} : { unit_activation: unitActivation }),
     ...(webUnit == null ? {} : { web_unit: webUnit }),
     checks: report.rows.map((row) => ({ check: row.check, verdict: row.verdict, evidence: row.evidence })),
     fixes: report.findings.map((finding) => ({ check: finding.check, fix: finding.fix })),
   })}\n`);
-  return report.verdict === "ok" ? 0 : 1;
+  const supervisorFailed = unitActivation?.enabled === false || webUnit?.installed === false;
+  return report.verdict === "ok" && !supervisorFailed ? 0 : 1;
+}
+
+function activateRedskilledUserUnit(): { readonly enabled: boolean; readonly detail?: string } {
+  for (const argv of [["daemon-reload"], ["enable", "redskilled.service"]]) {
+    const result = spawnSync("systemctl", ["--user", ...argv], { encoding: "utf8" });
+    if (result.status !== 0) {
+      const detail = (result.stderr || result.stdout || `systemctl ${argv[0]} failed`).trim();
+      return { enabled: false, ...(detail ? { detail } : {}) };
+    }
+  }
+  return { enabled: true };
 }
 
 function configHome(): string {

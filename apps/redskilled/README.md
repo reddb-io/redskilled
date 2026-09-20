@@ -559,6 +559,12 @@ daemon continues to listen only on its local Unix socket or Named Pipe. The
 dashboard shows every registered Project and Worker on this Host and provides
 bounded controls for queues, Worktrees, Brain, Memory and paired devices.
 
+On a graphical Linux or Windows host the daemon also exposes a small system
+tray menu using the RedDB icon. Its pinned `systray2` runtime is installed with the
+workstation package set under `~/.red/redskilled/runtime/tray`; daemon startup
+never resolves or downloads npm packages. An npm installation receives the
+same pinned dependency with the package itself.
+
 ```bash
 $RS web status                       # URL, CA fingerprint and service state
 $RS web pair --name "Laptop Firefox" # one-use invitation, valid for 10 minutes
