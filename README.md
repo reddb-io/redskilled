@@ -42,6 +42,9 @@ The existing publisher now belongs here and reads the same organization-level
 remains off until signing and consumers have passed the migration checks. See
 [migration/README.md](migration/README.md).
 
+Mobile publishing has its own `REDSKILLED_MOBILE_PUBLISH_ENABLED` switch. It may
+remain off while runtime and npm releases proceed without Android credentials.
+
 ## Plugin content
 
 - [Dev](https://github.com/reddb-io/red-skills/tree/main/plugins/dev/)

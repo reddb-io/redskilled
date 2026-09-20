@@ -32,6 +32,9 @@ listed in `plugin-code.txt`. Canonical content is fetched by `skills.lock.toon`.
 - Old `red-publish`, `red-release`, and `red-mobile-apk` workflows are disabled.
 - New publishing remains disarmed (`REDSKILLED_PUBLISH_ENABLED=false`). No npm
   release or tag was published during this migration. The prepared version is 4.5.0.
+- Mobile publishing is independently disarmed
+  (`REDSKILLED_MOBILE_PUBLISH_ENABLED=false`) until the original Android signer
+  is restored. Runtime, npm and GitHub releases do not depend on that cutover.
 - `NPM_TOKEN` and `RELEASE_PAT` remain organization-owned and are inherited by
   the workflows under the same names used by RedSkills. Organization-secret
   inspection is restricted to administrators, so their values are intentionally
