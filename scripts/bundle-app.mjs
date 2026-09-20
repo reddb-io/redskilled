@@ -81,6 +81,7 @@ const esbuildArgs = [
   "--platform=node",
   "--format=esm",
   "--target=node22",
+  "--loader:.png=dataurl",
   ...Object.entries(defines).map(([key, value]) => `--define:${key}=${JSON.stringify(value)}`),
   `--outfile=${args.outfile}`,
   "--banner:js=import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);",

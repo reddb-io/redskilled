@@ -83,6 +83,7 @@ import { runRedskillsAcpAdapter } from "./acp-control-plane.js";
 import { runAcpWorkerCommand } from "@reddb-io/worker/acp";
 import { resolveRedskilledClientEndpoint } from "./client-rendezvous.js";
 import { runRedskilledLinkCommand } from "./link-command.js";
+import { startRedskilledSystemTray } from "./system-tray.js";
 
 /**
  * Usage, as a CONSTANT — the answer owes nothing to the machine it is asked on.
@@ -136,6 +137,9 @@ Runs the daemon in this process. Every path is a flag and none is derived
 The poller is armed by a token in REDSKILLED_HOST_TOKEN (GITHUB_TOKEN or
 GH_TOKEN when it is unset). With none, the daemon holds registrations and counts
 no queue — an honest unknown, never a drained one.
+
+Desktop sessions show the daemon in the system tray. Set REDSKILLED_TRAY=0 to
+disable the icon without changing daemon or Worker behaviour.
 `,
   acp: `Usage: redskilled acp
 
@@ -630,6 +634,15 @@ export async function runRedskilledCli(argv: readonly string[]): Promise<number>
       // read every kill as a planned handover (#2919).
       process.once(signal, () => void daemon.stop({ reason: "signal", signal }).catch(() => undefined));
     }
+    // The tray is a desktop projection of this daemon, never another control
+    // plane. It starts only after the singleton is serving and calls the same
+    // dashboard and orderly stop paths as the CLI.
+    const tray = startRedskilledSystemTray({
+      version: values["daemon-version"] ?? readBuildInfo("redskilled").version,
+      state: daemon.hostState,
+      quit: () => daemon.stop({ reason: "requested", note: "quit from system tray" }),
+      log: (message) => process.stderr.write(`redskilled: ${message}\n`),
+    });
     // Resume the durable merge-custody obligations the previous daemon's death
     // stranded: the custodian's timers are in-memory and were re-armed only by
     // a client's handoff/status call, so every restart parked active records on
@@ -662,6 +675,7 @@ export async function runRedskilledCli(argv: readonly string[]): Promise<number>
       },
     });
     await daemon.closed;
+    await tray.stop();
     selfGuard.stop();
     custodyTender.stop();
     deaths.phase("closed");

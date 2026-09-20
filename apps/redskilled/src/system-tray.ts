@@ -1,0 +1,357 @@
+/**
+ * system-tray — the daemon's small, optional desktop control surface.
+ *
+ * The daemon remains the authority. The tray is only a helper process that
+ * projects state already owned by the daemon and calls its existing dashboard
+ * and stop paths. Failure to install or start this helper never costs the host
+ * control plane.
+ */
+import { spawn, type ChildProcess } from "node:child_process";
+import { chmod, mkdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { createRequire } from "node:module";
+import { join } from "node:path";
+import { redskilledHomeDir } from "@reddb-io/shared/redskilled-home.js";
+// Copied byte-for-byte from reddb-io/design-system's published platform asset.
+import redDbIconDataUrl from "../assets/reddb-icon-192.png";
+
+const SYSTRAY_PACKAGE = "systray2";
+const SYSTRAY_VERSION = "2.1.4";
+const STATUS_ITEM = 0;
+const DASHBOARD_ITEM = 1;
+const QUIT_ITEM = 2;
+
+interface TrayMenuItem {
+  readonly title: string;
+  readonly tooltip: string;
+  readonly enabled: boolean;
+}
+
+interface TrayAction {
+  readonly seq_id: number;
+}
+
+interface TrayProcess {
+  readonly pid?: number;
+  once(event: "exit", listener: () => void): unknown;
+  kill(signal?: NodeJS.Signals): unknown;
+}
+
+interface SystrayInstance {
+  onClick(listener: (action: TrayAction) => void): void;
+  sendAction(action: {
+    readonly type: "update-item";
+    readonly item: TrayMenuItem;
+    readonly seq_id: number;
+  }): unknown;
+  ready?(): Promise<unknown>;
+  kill(exit?: boolean): void;
+  readonly _process?: TrayProcess;
+  readonly process?: TrayProcess | (() => TrayProcess | undefined);
+}
+
+type SystrayConstructor = new (options: {
+  readonly menu: {
+    readonly icon: string;
+    readonly isTemplateIcon: false;
+    readonly title: "";
+    readonly tooltip: string;
+    readonly items: readonly TrayMenuItem[];
+  };
+  readonly debug: false;
+  readonly copyDir: true;
+}) => SystrayInstance;
+
+export interface RedskilledTrayState {
+  readonly workers: readonly unknown[];
+  readonly registrations?: readonly unknown[];
+}
+
+export interface RedskilledSystemTrayOptions {
+  readonly version: string;
+  readonly state: () => RedskilledTrayState;
+  readonly quit: () => void | Promise<void>;
+  readonly openDashboard?: () => void;
+  readonly env?: NodeJS.ProcessEnv;
+  readonly platform?: NodeJS.Platform;
+  readonly homeDir?: string;
+  readonly loadSystray?: () => Promise<SystrayConstructor | null>;
+  readonly log?: (message: string) => void;
+  readonly refreshMs?: number;
+}
+
+export interface RedskilledSystemTray {
+  readonly ready: Promise<boolean>;
+  stop(): Promise<void>;
+}
+
+/** Desktop availability is a capability probe, independent of daemon health. */
+function supportsRedskilledSystemTray(
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (env.REDSKILLED_TRAY === "0") return false;
+  if (platform === "darwin") return true;
+  return platform === "linux" && Boolean(env.DISPLAY);
+}
+
+/** Start the tray in the background; the daemon is already serving at this point. */
+export function startRedskilledSystemTray(options: RedskilledSystemTrayOptions): RedskilledSystemTray {
+  const platform = options.platform ?? process.platform;
+  const env = options.env ?? process.env;
+  let tray: SystrayInstance | null = null;
+  let stopped = false;
+  let refresh: NodeJS.Timeout | undefined;
+  const bootAbort = new AbortController();
+
+  const ready = (async (): Promise<boolean> => {
+    if (!supportsRedskilledSystemTray(platform, env)) return false;
+    const SysTray = await (options.loadSystray ?? (() => loadSystrayRuntime({
+      env,
+      homeDir: options.homeDir,
+      log: options.log,
+      signal: bootAbort.signal,
+    })))();
+    if (SysTray == null || stopped) return false;
+    const tooltip = `Redskilled ${options.version}`;
+    tray = new SysTray({
+      menu: {
+        icon: redDbIconDataUrl.replace(/^data:image\/png;base64,/, ""),
+        isTemplateIcon: false,
+        title: "",
+        tooltip,
+        items: menuItems(options.version, readState(options)),
+      },
+      debug: false,
+      copyDir: true,
+    });
+    tray.onClick((action) => {
+      if (action.seq_id === DASHBOARD_ITEM) {
+        try {
+          (options.openDashboard ?? (() => openDashboardTerminal(platform, env)))();
+        } catch (error) {
+          options.log?.(`could not open dashboard: ${errorMessage(error)}`);
+        }
+      } else if (action.seq_id === QUIT_ITEM) {
+        try {
+          void Promise.resolve(options.quit()).catch((error: unknown) => {
+            options.log?.(`could not stop from system tray: ${errorMessage(error)}`);
+          });
+        } catch (error) {
+          options.log?.(`could not stop from system tray: ${errorMessage(error)}`);
+        }
+      }
+    });
+    await tray.ready?.();
+    if (stopped) {
+      await stopSystray(tray);
+      tray = null;
+      return false;
+    }
+    refresh = setInterval(() => {
+      try {
+        const update = tray?.sendAction({
+          type: "update-item",
+          item: statusItem(options.version, readState(options)),
+          seq_id: STATUS_ITEM,
+        });
+        void Promise.resolve(update).catch((error: unknown) => {
+          options.log?.(`could not refresh system tray: ${errorMessage(error)}`);
+        });
+      } catch (error) {
+        options.log?.(`could not refresh system tray: ${errorMessage(error)}`);
+      }
+    }, options.refreshMs ?? 5_000);
+    refresh.unref();
+    return true;
+  })().catch((error: unknown) => {
+    if (!stopped) options.log?.(`system tray unavailable: ${errorMessage(error)}`);
+    return false;
+  });
+
+  return {
+    ready,
+    async stop(): Promise<void> {
+      stopped = true;
+      bootAbort.abort();
+      if (refresh != null) clearInterval(refresh);
+      await ready;
+      const current = tray;
+      tray = null;
+      if (current != null) await stopSystray(current);
+    },
+  };
+}
+
+function menuItems(version: string, state: RedskilledTrayState): readonly TrayMenuItem[] {
+  return [
+    statusItem(version, state),
+    { title: "Open Dashboard", tooltip: "Open the Redskilled host dashboard", enabled: true },
+    { title: "Quit Redskilled", tooltip: "Stop the host daemon; Workers survive", enabled: true },
+  ];
+}
+
+function statusItem(version: string, state: RedskilledTrayState): TrayMenuItem {
+  const workers = state.workers.length;
+  const projects = state.registrations?.length ?? 0;
+  return {
+    title: `Redskilled v${version} · ${workers} Worker${workers === 1 ? "" : "s"} · ${projects} Project${projects === 1 ? "" : "s"}`,
+    tooltip: "Host daemon is running",
+    enabled: false,
+  };
+}
+
+function readState(options: RedskilledSystemTrayOptions): RedskilledTrayState {
+  try {
+    return options.state();
+  } catch (error) {
+    options.log?.(`could not read system tray state: ${errorMessage(error)}`);
+    return { workers: [] };
+  }
+}
+
+async function loadSystrayRuntime(options: {
+  readonly env: NodeJS.ProcessEnv;
+  readonly homeDir?: string;
+  readonly log?: (message: string) => void;
+  readonly signal: AbortSignal;
+}): Promise<SystrayConstructor | null> {
+  const root = join(redskilledHomeDir(options.homeDir ?? homedir()), "runtime", "tray");
+  const packageRoot = join(root, "node_modules", SYSTRAY_PACKAGE);
+  if (!existsSync(join(packageRoot, "package.json"))) {
+    await mkdir(root, { recursive: true, mode: 0o700 });
+    options.log?.("installing the system tray runtime for this user");
+    const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+    const installed = await runHelper(npm, [
+      "install",
+      "--prefix", root,
+      "--no-save",
+      "--no-package-lock",
+      "--no-audit",
+      "--no-fund",
+      `${SYSTRAY_PACKAGE}@${SYSTRAY_VERSION}`,
+    ], options.env, options.signal);
+    if (!installed) return null;
+  }
+  const binary = join(
+    packageRoot,
+    "traybin",
+    process.platform === "darwin" ? "tray_darwin_release" : "tray_linux_release",
+  );
+  await chmod(binary, 0o755).catch(() => undefined);
+  const runtimeRequire = createRequire(join(root, "package.json"));
+  const loaded = runtimeRequire(SYSTRAY_PACKAGE) as { readonly default?: SystrayConstructor } | SystrayConstructor;
+  return typeof loaded === "function" ? loaded : loaded.default ?? null;
+}
+
+/** npm is a runtime installer helper. It is never admitted or tracked as a Worker. */
+function runHelper(
+  command: string,
+  args: readonly string[],
+  env: NodeJS.ProcessEnv,
+  signal: AbortSignal,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve(false);
+      return;
+    }
+    let child: ChildProcess;
+    try {
+      child = spawn(command, args, { env, stdio: "ignore", windowsHide: true });
+    } catch {
+      resolve(false);
+      return;
+    }
+    let settled = false;
+    const finish = (installed: boolean): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      signal.removeEventListener("abort", abort);
+      resolve(installed);
+    };
+    const abort = (): void => {
+      try { child.kill("SIGTERM"); } catch { /* already gone */ }
+      finish(false);
+    };
+    const timeout = setTimeout(abort, 120_000);
+    timeout.unref();
+    signal.addEventListener("abort", abort, { once: true });
+    child.once("error", () => finish(false));
+    child.once("exit", (code) => finish(code === 0));
+  });
+}
+
+function openDashboardTerminal(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): void {
+  const entry = process.argv[1];
+  if (entry == null) return;
+  const command = [process.execPath, ...process.execArgv, entry, "dashboard"];
+  if (platform === "darwin") {
+    const shellCommand = command.map(shellQuote).join(" ");
+    detach("osascript", ["-e", `tell application "Terminal" to do script ${JSON.stringify(shellCommand)}`], env);
+    return;
+  }
+  const terminals: readonly [string, readonly string[]][] = [
+    ["xdg-terminal-exec", command],
+    ["kgx", ["--", ...command]],
+    ["gnome-terminal", ["--", ...command]],
+    ["konsole", ["-e", ...command]],
+    ["x-terminal-emulator", ["-e", ...command]],
+  ];
+  tryTerminal(terminals, env, 0);
+}
+
+function tryTerminal(
+  candidates: readonly (readonly [string, readonly string[]])[],
+  env: NodeJS.ProcessEnv,
+  index: number,
+): void {
+  const candidate = candidates[index];
+  if (candidate == null) return;
+  const child = detach(candidate[0], candidate[1], env);
+  child.once("error", () => tryTerminal(candidates, env, index + 1));
+}
+
+function detach(command: string, args: readonly string[], env: NodeJS.ProcessEnv): ChildProcess {
+  const child = spawn(command, args, { detached: true, env, stdio: "ignore", windowsHide: true });
+  child.unref();
+  return child;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
+async function stopSystray(instance: SystrayInstance): Promise<void> {
+  const exposed = instance.process;
+  const child = instance._process ?? (typeof exposed === "function" ? exposed.call(instance) : exposed);
+  if (child?.pid == null) {
+    try { instance.kill(false); } catch { /* already gone */ }
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    let finished = false;
+    const finish = (): void => {
+      if (finished) return;
+      finished = true;
+      resolve();
+    };
+    child.once("exit", finish);
+    try { instance.kill(false); } catch { finish(); }
+    const terminate = setTimeout(() => {
+      try { child.kill("SIGTERM"); } catch { finish(); }
+    }, 800);
+    const kill = setTimeout(() => {
+      try { child.kill("SIGKILL"); } catch { finish(); }
+      finish();
+    }, 1_600);
+    terminate.unref();
+    kill.unref();
+  });
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
