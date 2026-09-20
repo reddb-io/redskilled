@@ -7,3 +7,5 @@
 - Purpose: the Redskilled system tray icon embedded in the published daemon bundle
 
 Refresh it from Design System; do not redraw or modify it locally.
+Regenerate `../src/reddb-icon.generated.ts` from the same bytes whenever this
+source asset changes; the module keeps source-mode and bundled execution equal.

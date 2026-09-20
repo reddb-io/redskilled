@@ -12,6 +12,9 @@
     "url": "git+https://github.com/reddb-io/redskilled.git",
     "directory": "packaging/npm"
   },
+  "dependencies": {
+    "systray2": "2.1.4"
+  },
   "bin": {
     "red-skills-redskilled-mcp": "bin/red-skills-redskilled-mcp.mjs",
     "red-skills-code-nav": "bin/red-skills-code-nav.mjs",
