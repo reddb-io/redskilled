@@ -25,13 +25,21 @@ listed in `plugin-code.txt`. Canonical content is fetched by `skills.lock.toon`.
 ## Implementation status
 
 - Public runtime snapshot is published at https://github.com/reddb-io/redskilled.
-- Content separation is reviewable in reddb-io/red-skills#4421; the installer
-  consumer change is in reddb-io/red-dev#237. Both remain draft until cutover.
+- Runtime cutover preparation landed in reddb-io/redskilled#13. Content separation
+  landed in reddb-io/red-skills#4421, and the installer consumer change landed in
+  reddb-io/red-dev#237.
 - All 12 open runtime issues were transferred; see [issues.md](issues.md).
   The parent relationship for #2 -> #1 was restored and verified.
 - Old `red-publish`, `red-release`, and `red-mobile-apk` workflows are disabled.
-- New publishing remains disarmed (`REDSKILLED_PUBLISH_ENABLED=false`). No npm
-  release or tag was published during this migration. The prepared version is 4.5.0.
+- Redskilled is the active publisher (`REDSKILLED_PUBLISH_ENABLED=true`). Version
+  4.5.0 was published from commit `d9b92cf35ccd33b6b407f64f98450bda1aba5bfa`:
+  https://github.com/reddb-io/redskilled/releases/tag/v4.5.0. The release workflow
+  completed successfully at https://github.com/reddb-io/redskilled/actions/runs/35514328037.
+- All five existing package names were published with `latest=4.5.0`, and a fresh
+  isolated exact-version install verified their installed commands:
+  `@reddb-io/red-skills`, `@reddb-io/red-skills-dev`,
+  `@reddb-io/red-skills-memory`, `@reddb-io/red-skills-brain`, and
+  `@reddb-io/red-skills-internal`.
 - Mobile publishing is independently disarmed
   (`REDSKILLED_MOBILE_PUBLISH_ENABLED=false`) until the original Android signer
   is restored. Runtime, npm and GitHub releases do not depend on that cutover.
@@ -44,9 +52,14 @@ listed in `plugin-code.txt`. Canonical content is fetched by `skills.lock.toon`.
 - The original Android `.jks` must be restored from backup before running the
   wizard. The old encrypted repository secret cannot be read back, and replacing
   the signer would break updates for already signed installs.
-- At content cutover, replace the old required `test`/`typecheck` checks with
-  `content / validate-content`; do not merge manifests requiring 4.5.0 before
-  that runtime has been published and its exact-version install verified.
+- Redskilled protects `main` with required `test` and `typecheck` checks. RedSkills
+  protects `main` with `content / validate-content`; its post-cutover validation
+  passed at https://github.com/reddb-io/red-skills/actions/runs/35514957711.
+- The red-dev consumer uses RedSkills for versions before 4.5.0 and Redskilled for
+  4.5.0 and later. Its post-merge CI passed at
+  https://github.com/reddb-io/red-dev/actions/runs/35514928133, followed by the
+  successful v1.0.141 release at
+  https://github.com/reddb-io/red-dev/actions/runs/35514928105.
 
 ## Runtime/content contract
 

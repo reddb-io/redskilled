@@ -1,6 +1,10 @@
 # Split validation
 
-Validated against content commit `0bdca8420bc859002d4034fc9ed145754c78954e`.
+Validated against the cutover pair:
+
+- Redskilled runtime and v4.5.0 tag:
+  `d9b92cf35ccd33b6b407f64f98450bda1aba5bfa`
+- RedSkills content merge: `58b400b7d131cc33d4567b9697dda8e864acbe27`
 
 ## Passed
 
@@ -20,6 +24,21 @@ Validated against content commit `0bdca8420bc859002d4034fc9ed145754c78954e`.
   Link initially timed out under parallel load; its complete isolated suite passed.
 - RedSkills PR #4421 content CI; red-dev PR #237 typecheck/test/build, shellcheck,
   bootstrap and package-set checks. The focused consumer run passed 159 tests.
+- Redskilled PR #13, RedSkills PR #4421 and red-dev PR #237 merged. Post-merge
+  checks passed for all three repositories.
+- Redskilled v4.5.0 publication completed successfully:
+  https://github.com/reddb-io/redskilled/actions/runs/35514328037
+- The GitHub Release contains the signed package-set manifests, runtime bundles,
+  VSIX and `runtime-entrypoints.tgz`:
+  https://github.com/reddb-io/redskilled/releases/tag/v4.5.0
+- All five npm packages were installed together at exact version 4.5.0 in a fresh
+  isolated directory. Their `latest` dist-tags resolve to 4.5.0, and the installed
+  command entrypoints report 4.5.0.
+- RedSkills post-cutover content validation passed:
+  https://github.com/reddb-io/red-skills/actions/runs/35514957711
+- red-dev post-merge CI passed, followed by its automatic v1.0.141 release:
+  https://github.com/reddb-io/red-dev/actions/runs/35514928133
+  and https://github.com/reddb-io/red-dev/actions/runs/35514928105
 
 ## Broader-suite limits
 
@@ -35,6 +54,7 @@ version metadata. This establishes preserved source, not a full clean-baseline
 reproduction of every failing test. These failures remain visible and must not
 be presented as an all-green workspace test run.
 
-No release was published. The publisher uses the same inherited organization
-secrets as RedSkills. Actual registry publication, Sigstore identity and the
-repository-specific Android signing identity still require a real release cutover.
+Runtime, npm and GitHub publication are complete. The publisher uses the same
+inherited organization secrets as RedSkills. Android remains outside this cutover:
+`REDSKILLED_MOBILE_PUBLISH_ENABLED=false`, no APK was produced, and restoring the
+original repository-specific signing identity remains future work.
