@@ -8,9 +8,10 @@ listed in `plugin-code.txt`. Canonical content is fetched by `skills.lock.toon`.
 
 1. Validate both candidate trees, the package rehearsal, and the red-dev acquisition
    change. Publish the Redskilled repository with publishing disarmed.
-2. Configure repository/environment secrets for npm, release pushes, and Android
-   signing with `bash scripts/setup-redskilled-publishing.sh`. Existing secrets
-   cannot be read back from GitHub and copied.
+2. Keep the publisher on the same organization-level `NPM_TOKEN` and
+   `RELEASE_PAT` secrets used by RedSkills. Restore the existing Android signer
+   and configure its four repository secrets separately when mobile releases are
+   part of the cutover.
 3. Disable `red-publish`, `red-release`, and `red-mobile-apk` in RedSkills, and verify
    no publishing job is running. Enable `REDSKILLED_PUBLISH_ENABLED=true` only after
    the old publishing authority is off and the release is ready.
@@ -31,9 +32,12 @@ listed in `plugin-code.txt`. Canonical content is fetched by `skills.lock.toon`.
 - Old `red-publish`, `red-release`, and `red-mobile-apk` workflows are disabled.
 - New publishing remains disarmed (`REDSKILLED_PUBLISH_ENABLED=false`). No npm
   release or tag was published during this migration. The prepared version is 4.5.0.
-- Repository secrets still need administrator configuration: `NPM_TOKEN`,
-  `RELEASE_PAT`, and the four existing `ANDROID_RELEASE_*` signing secrets.
-  GitHub refused organization-secret inspection with HTTP 403 (`admin:org`).
+- `NPM_TOKEN` and `RELEASE_PAT` remain organization-owned and are inherited by
+  the workflows under the same names used by RedSkills. Organization-secret
+  inspection is restricted to administrators, so their values are intentionally
+  neither copied nor stored as repository secrets.
+- The four existing `ANDROID_RELEASE_*` signing secrets remain repository-specific
+  and are the only credential copy still needed for signed mobile releases.
 - The original Android `.jks` must be restored from backup before running the
   wizard. The old encrypted repository secret cannot be read back, and replacing
   the signer would break updates for already signed installs.

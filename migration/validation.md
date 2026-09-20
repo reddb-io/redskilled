@@ -35,5 +35,6 @@ version metadata. This establishes preserved source, not a full clean-baseline
 reproduction of every failing test. These failures remain visible and must not
 be presented as an all-green workspace test run.
 
-No release was published. Registry ownership/credentials, actual Sigstore
-identity and the Android signing identity still require a real release cutover.
+No release was published. The publisher uses the same inherited organization
+secrets as RedSkills. Actual registry publication, Sigstore identity and the
+repository-specific Android signing identity still require a real release cutover.
