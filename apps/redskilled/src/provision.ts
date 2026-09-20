@@ -71,6 +71,10 @@ plugins:
       #     argv: [/usr/local/bin/redwall, refresh]
       # notifications:
       #   - worker-death
+      # web:
+      #   port: 25051
+      #   lan: true
+      #   # bind: "::"
       # github_profiles:
       #   personal:
       #     kind: personal

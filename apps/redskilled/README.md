@@ -551,6 +551,51 @@ $RS unit install                     # write the user unit and enable it now
 $RS unit uninstall                   # remove it; nothing starts the daemon afterwards
 ```
 
+### Browser dashboard
+
+`redskilled-web` is an HTTPS companion process. It is installed beside the
+daemon by `redskilled provision`, but it never enters the daemon bundle and the
+daemon continues to listen only on its local Unix socket or Named Pipe. The
+dashboard shows every registered Project and Worker on this Host and provides
+bounded controls for queues, Worktrees, Brain, Memory and paired devices.
+
+```bash
+$RS web status                       # URL, CA fingerprint and service state
+$RS web pair --name "Laptop Firefox" # one-use invitation, valid for 10 minutes
+$RS web devices                      # paired browsers and last-seen times
+$RS web revoke <device-id>           # revoke that browser immediately
+$RS web ca export ./redskilled-ca.crt
+$RS web ca install                   # trust the CA in this user's NSS database
+$RS web unit status                  # inspect only the companion service
+```
+
+Open the pairing URL in the intended browser. For another machine on the LAN,
+install the exported CA only after comparing its SHA-256 fingerprint with
+`web status`, then open one of the LAN URLs emitted by `web pair`. Invitations
+are single-use. Browser sessions expire after 30 days and each paired device can
+be revoked independently. The UI and `/ca.crt` are reachable before pairing;
+all host data and commands require a paired session, same-origin request and
+per-session CSRF token.
+
+The default listener is `[::]:25051`, which covers localhost and the LAN on
+dual-stack hosts. Host policy may narrow it without changing a repository:
+
+```yaml
+plugins:
+  dev:
+    redskilled:
+      web:
+        port: 25051
+        lan: true
+        # bind: "::"       # explicit address wins over lan
+```
+
+Set `lan: false` to bind `127.0.0.1`. The companion reads this file only at
+startup, so restart it after a change with `systemctl --user restart
+redskilled-web.service`. `web unit remove` disables and removes the service;
+`web unit install` copies the currently installed companion bundle to stable
+host storage before enabling it.
+
 ```bash
 $RS reclaim --dry-run                # what a sweep would take, and why
 $RS reclaim                          # remove the runtime dirs whose owner is gone

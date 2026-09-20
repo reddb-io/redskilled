@@ -1,0 +1,54 @@
+import { tv, type VariantProps } from "tailwind-variants";
+import type { NavbarAlign, NavbarCollapse } from "./Navbar.svelte";
+
+const ALIGN = {
+  start: {
+    brand: "shrink-0",
+    links: "grow justify-start",
+    actions: "ms-auto shrink-0 justify-end",
+  },
+  center: {
+    brand: "grow basis-0 justify-start",
+    links: "shrink-0 justify-center",
+    actions: "grow basis-0 justify-end",
+  },
+} as const satisfies Record<NavbarAlign, Record<"brand" | "links" | "actions", string>>;
+
+const COLLAPSE = {
+  responsive: { rail: "hidden md:flex", compact: "flex md:hidden", panel: "md:hidden" },
+  expanded: { rail: "flex", compact: "hidden", panel: "hidden" },
+  collapsed: { rail: "hidden", compact: "flex", panel: "" },
+} as const satisfies Record<NavbarCollapse, Record<"rail" | "compact" | "panel", string>>;
+
+const OPEN = {
+  true: { panel: "flex" },
+  false: { panel: "hidden" },
+} as const;
+
+export const navbar = tv({
+  slots: {
+    root: "w-full border-b border-elevation-sunken-border bg-elevation-sunken-surface text-foreground shadow-elevation-sunken",
+    rail: [
+      "h-[var(--reddb-spatial-control-height-md)] w-full items-center gap-[var(--reddb-spatial-gap-lg)]",
+      "px-[var(--reddb-spatial-inset-sm)]",
+    ].join(" "),
+    compact: [
+      "h-[var(--reddb-spatial-control-height-md)] w-full items-center justify-between gap-[var(--reddb-spatial-gap-md)]",
+      "px-[var(--reddb-spatial-inset-sm)]",
+    ].join(" "),
+    brand: "flex items-center",
+    links: "m-0 flex list-none items-center gap-[var(--reddb-spatial-gap-md)] ps-0",
+    actions: "flex items-center gap-[var(--reddb-spatial-gap-md)]",
+    link: "w-auto",
+    toggle: "shrink-0",
+    panel: [
+      "w-full border-t border-elevation-sunken-border",
+      "px-[var(--reddb-spatial-inset-md)] py-[var(--reddb-spatial-inset-md)]",
+    ].join(" "),
+    panelLinks: "m-0 flex list-none flex-col gap-[var(--reddb-spatial-gap-sm)] ps-0",
+  },
+  variants: { align: ALIGN, collapse: COLLAPSE, open: OPEN },
+  defaultVariants: { align: "start", collapse: "responsive", open: false },
+});
+
+export type NavbarVariants = VariantProps<typeof navbar>;

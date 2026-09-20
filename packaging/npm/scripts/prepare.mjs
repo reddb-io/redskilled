@@ -50,6 +50,7 @@ const BUNDLES = [
   { dest: "rsp.bundle.min.mjs", sources: ["rsp.bundle.min.mjs"] },
   { dest: "rsp-core.bundle.min.mjs", sources: ["rsp-core.bundle.min.mjs"] },
   { dest: "redskilled.bundle.min.mjs", sources: ["redskilled.bundle.min.mjs"] },
+  { dest: "redskilled-web.bundle.min.mjs", sources: ["redskilled-web.bundle.min.mjs"] },
   { dest: "statusline.bundle.min.mjs", sources: ["statusline.bundle.min.mjs"] },
 ];
 

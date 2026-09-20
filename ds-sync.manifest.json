@@ -1,0 +1,8 @@
+{
+  "source": "/home/cyber/Work/reddb.io/design-system",
+  "version": "v2026.08.5",
+  "consumer": "redskilled",
+  "kits": ["app"],
+  "styles": ["application"],
+  "dest": "vendor/ds"
+}

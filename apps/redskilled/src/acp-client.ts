@@ -18,6 +18,7 @@ import { resolveRedskilledClientEndpoint } from "./client-rendezvous.js";
 import {
   REDSKILLS_ACP_METHODS,
   REDSKILLS_WIRE_MAJOR,
+  type RedskillsAcpMethod,
   type GoDispatchAnswer,
   type RedskilledBrainAnswer,
   type RedskilledBrainCall,
@@ -66,6 +67,12 @@ export interface RedskillsProjectPromptResult {
 }
 
 export interface RedskillsProjectAcpSession {
+  /**
+   * Call one declared RedSkills extension method on this Project-bound session.
+   * Callers must still hold their own explicit allowlist; accepting a registry
+   * member here does not make capability discovery an authorization boundary.
+   */
+  extension<Answer = unknown>(method: RedskillsAcpMethod, params: Record<string, unknown>): Promise<Answer>;
   control(operation: "status"): Promise<RedskillsProjectStatusSnapshot>;
   /**
    * A control call CARRIES its request. A width the caller asked for that the
@@ -249,6 +256,10 @@ export async function connectRedskillsProjectAcp(
   }) as RedskillsProjectAcpSession["control"];
 
   return {
+    async extension<Answer = unknown>(method: RedskillsAcpMethod, params: Record<string, unknown>): Promise<Answer> {
+      const held = await ensureLive();
+      return await held.connection.agent.request<Answer>(method, params);
+    },
     control,
     async github(request) {
       const held = await ensureLive();

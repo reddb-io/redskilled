@@ -20,7 +20,8 @@ const SYSTRAY_PACKAGE = "systray2";
 const SYSTRAY_VERSION = "2.1.4";
 const STATUS_ITEM = 0;
 const DASHBOARD_ITEM = 1;
-const QUIT_ITEM = 2;
+const PAIR_ITEM = 2;
+const QUIT_ITEM = 3;
 
 interface TrayMenuItem {
   readonly title: string;
@@ -163,10 +164,15 @@ function handleTrayClick(
 ): void {
   if (action.seq_id === DASHBOARD_ITEM) {
     try {
-      (options.openDashboard ?? (() => openDashboardTerminal(platform, env)))();
+      (options.openDashboard ?? (() => openDashboardBrowser(platform, env)))();
     } catch (error) {
       options.log?.(`could not open dashboard: ${errorMessage(error)}`);
     }
+    return;
+  }
+  if (action.seq_id === PAIR_ITEM) {
+    try { openPairTerminal(platform, env); }
+    catch (error) { options.log?.(`could not open browser pairing: ${errorMessage(error)}`); }
     return;
   }
   if (action.seq_id !== QUIT_ITEM) return;
@@ -199,6 +205,7 @@ function menuItems(version: string, state: RedskilledTrayState): readonly TrayMe
   return [
     statusItem(version, state),
     { title: "Open Dashboard", tooltip: "Open the Redskilled host dashboard", enabled: true },
+    { title: "Pair Browser", tooltip: "Create a one-use HTTPS browser invitation", enabled: true },
     { title: "Quit Redskilled", tooltip: "Stop the host daemon; Workers survive", enabled: true },
   ];
 }
@@ -295,10 +302,16 @@ function runHelper(
   });
 }
 
-function openDashboardTerminal(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): void {
+function openDashboardBrowser(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): void {
+  const url = "https://localhost:25051";
+  if (platform === "darwin") { detach("open", [url], env); return; }
+  detach("xdg-open", [url], env);
+}
+
+function openPairTerminal(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): void {
   const entry = process.argv[1];
   if (entry == null) return;
-  const command = [process.execPath, ...process.execArgv, entry, "dashboard"];
+  const command = [process.execPath, ...process.execArgv, entry, "web", "pair"];
   if (platform === "darwin") {
     const shellCommand = command.map(shellQuote).join(" ");
     detach("osascript", ["-e", `tell application "Terminal" to do script ${JSON.stringify(shellCommand)}`], env);

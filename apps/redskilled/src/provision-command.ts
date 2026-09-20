@@ -25,6 +25,7 @@ import {
   renderRedskilledUserUnit,
 } from "./provision.js";
 import { stabilizeRedskilledEntry } from "./stable-bundle.js";
+import { installRedskilledWebUnit } from "./web-supervision.js";
 
 const PROVISION_FLAGS = {
   "no-start": { kind: "boolean" },
@@ -119,6 +120,13 @@ export async function runProvision(
         }),
       })
     : undefined;
+  // The HTTPS dashboard is a separate companion process, installed in the
+  // same provisioning pass but never loaded into the daemon. Unit-injected
+  // tests own a synthetic service manager and deliberately skip this real
+  // host side effect.
+  const webUnit = !values.check && !values["no-unit"] && io.configHome == null
+    ? await installRedskilledWebUnit()
+    : undefined;
 
   // **This is the ONE start on the machine** (ADR 0150 §4): the installed unit
   // when there is one, and a direct launch only where no user service can be
@@ -148,6 +156,7 @@ export async function runProvision(
     socket: facts.socketPath,
     ...(startError == null ? {} : { start_error: startError }),
     ...(unit == null ? {} : { unit: { path: unit.path, status: unit.status } }),
+    ...(webUnit == null ? {} : { web_unit: webUnit }),
     checks: report.rows.map((row) => ({ check: row.check, verdict: row.verdict, evidence: row.evidence })),
     fixes: report.findings.map((finding) => ({ check: finding.check, fix: finding.fix })),
   })}\n`);

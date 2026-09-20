@@ -83,6 +83,7 @@ import { runRedskillsAcpAdapter } from "./acp-control-plane.js";
 import { runAcpWorkerCommand } from "@reddb-io/worker/acp";
 import { resolveRedskilledClientEndpoint } from "./client-rendezvous.js";
 import { runRedskilledLinkCommand } from "./link-command.js";
+import { REDSKILLED_WEB_USAGE, runRedskilledWebCompanion } from "./web-launcher.js";
 import { startRedskilledSystemTray } from "./system-tray.js";
 
 /**
@@ -105,6 +106,7 @@ Commands:
   github-spend          report which operations spent GitHub budget
   incidents             list/show bounded CPU and memory forensic captures
   link                  connect Redskilled Mobile; prints a pairing URI and QR
+  web                   serve and administer the HTTPS browser dashboard
   unit                  install | uninstall | status — the optional supervisor
   provision             make this machine ready; --check is the read-only half
   reclaim               clear runtime dirs left by dead sessions
@@ -192,6 +194,7 @@ command with no options.
                             WSS is available; WireGuard reports unavailable
   --allow-insecure-relay    permit ws:// only for local development
 `,
+  web: REDSKILLED_WEB_USAGE,
   statusline: `Usage: redskilled statusline [global] [--verbose] [flags]
 
 Renders the status line the agent host prints verbatim. Config is read on this
@@ -466,6 +469,7 @@ export async function runRedskilledCli(argv: readonly string[]): Promise<number>
     | "github-spend"
     | "incidents"
     | "link"
+    | "web"
     | "unit"
     | "provision"
     | "reclaim"
@@ -482,6 +486,7 @@ export async function runRedskilledCli(argv: readonly string[]): Promise<number>
       "github-spend": {},
       incidents: {},
       link: {},
+      web: {},
       unit: {},
       provision: {},
       reclaim: {},
@@ -698,6 +703,7 @@ export async function runRedskilledCli(argv: readonly string[]): Promise<number>
   if (command === "github-spend") return await runGithubSpend(args);
   if (command === "incidents") return await runResourceIncidents(args);
   if (command === "link") return runRedskilledLinkCommand(args);
+  if (command === "web") return runRedskilledWebCompanion(args);
   if (command === "unit") return await runUnit(args);
 
   if (command === "provision") return await runProvision(args);
