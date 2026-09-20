@@ -179,7 +179,10 @@ host_cfg="$host/opencode.json"
 [ -f "$host/opencode.jsonc" ] && host_cfg="$host/opencode.jsonc"
 [ -f "$host_cfg" ] || { ls -la "$host" >&2; fail "OpenCode host has no opencode.json(c)"; }
 grep -qF '"mcp"' "$host_cfg" || fail "$host_cfg carries no MCP block"
-grep -qF "$current/plugins/memory/scripts/bootstrap.mjs" "$host_cfg" || fail "$host_cfg does not point red-memory at the composed tree"
+grep -qF '"red-skills-memory"' "$host_cfg" || fail "$host_cfg does not invoke the installed memory command"
+node "$current/bin/red-skills-hook.mjs" dev/claude/SessionStart/0 </dev/null >"$work/hook.out" || fail "packaged readiness hook failed"
+node "$current/bin/red-skills-resource.mjs" read plugins/dev/hooks/command-guard.sh >"$work/guard.sh" || fail "packaged helper missing"
+[ -s "$work/guard.sh" ] || fail "packaged helper is empty"
 skills_installed="$(grep -c 'installed skill' "$work/install.log" || true)"
 pass "OpenCode host carries $skills_installed skills, hook modules, and an MCP block over $current"
 
