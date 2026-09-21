@@ -2,11 +2,17 @@
   import { onMount } from "svelte";
   import { decode, encode, type JsonValue } from "@reddb-io/toon";
   import { AlertDialog, Badge, Button, Field, Input, Logo, Select, Textarea } from "@reddb-io/design-system/base";
-  import { Activity, Bot, Boxes, Brain, FolderGit2, Gauge, Menu, RefreshCw, ShieldCheck, Square, WifiOff, X } from "lucide-svelte";
+  import { Activity, Bot, Boxes, Brain, Check, Copy, Download, FolderGit2, Gauge, Laptop, Menu, RefreshCw, ShieldCheck, Square, WifiOff, X } from "lucide-svelte";
 
   type View = "overview" | "projects" | "workers" | "worktrees" | "knowledge" | "devices";
   type RecordValue = Record<string, unknown>;
   type Snapshot = { version: number; generated_at: string; csrf: string; state: RecordValue; devices: RecordValue[] };
+  type ConnectDetails = { ok: true; name: string; expires_at: string; connect_urls: string[]; ca_url: string; ca_fingerprint: string };
+
+  const connectToken = (() => {
+    const match = location.pathname.match(/^\/connect\/(.+)$/);
+    return match == null ? "" : decodeURIComponent(match[1]);
+  })();
 
   let snapshot = $state<Snapshot | null>(null);
   let view = $state<View>("overview");
@@ -27,6 +33,9 @@
   let memoryResult = $state<unknown>(null);
   let moreOpen = $state(false);
   let streamAbort: AbortController | null = null;
+  let connect = $state<ConnectDetails | null>(null);
+  let connectError = $state("");
+  let copied = $state(false);
 
   const workers = $derived((snapshot?.state.workers as RecordValue[] | undefined) ?? []);
   const registrations = $derived((snapshot?.state.registrations as RecordValue[] | undefined) ?? []);
@@ -34,9 +43,33 @@
   const budget = $derived((snapshot?.state.budget_accounting as RecordValue | undefined) ?? {});
 
   onMount(() => {
-    void refresh().then(connectStream);
+    if (connectToken !== "") void loadConnect();
+    else void refresh().then(connectStream);
     return () => streamAbort?.abort();
   });
+
+  async function loadConnect(): Promise<void> {
+    try {
+      const response = await fetch(`/api/v1/connect/${encodeURIComponent(connectToken)}`);
+      const value = decode(await response.text()) as unknown as ConnectDetails & { error?: string };
+      if (!response.ok) throw new Error(value.error ?? "This connection invitation is unavailable.");
+      connect = value;
+    } catch (cause) {
+      connectError = cause instanceof Error ? cause.message : String(cause);
+    }
+  }
+
+  async function copyConnectLink(): Promise<void> {
+    const url = connect?.connect_urls[0];
+    if (url == null) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      copied = true;
+      setTimeout(() => { copied = false; }, 2_000);
+    } catch {
+      connectError = "The browser blocked clipboard access. Select and copy the address below.";
+    }
+  }
 
   async function refresh(): Promise<void> {
     loading = snapshot == null;
@@ -168,6 +201,39 @@
 <svelte:head><meta name="description" content="Redskilled host control plane" /></svelte:head>
 <svelte:window onkeydown={(event) => { if (event.key === "Escape") moreOpen = false; }} />
 
+{#if connectToken !== ""}
+  <main class="connect-shell">
+    <div class="connect-brand"><Logo layout="symbol" on="dark" size={30} /><span>redskilled</span></div>
+    <section class="connect-intro">
+      <p class="host-id">SECURE DEVICE CONNECTION</p>
+      <h1>Connect another computer</h1>
+      <p>Give one browser access to this Host. The invitation expires after ten minutes and can only be used once.</p>
+    </section>
+
+    {#if connectError}<div class="notice locked" role="alert"><WifiOff size={17} /><span>{connectError}</span></div>{/if}
+
+    {#if connect == null && connectError === ""}
+      <div class="connect-loading" aria-label="Preparing secure connection"><i></i><i></i><i></i></div>
+    {:else if connect}
+      <div class="connect-layout">
+        <section class="connect-steps" aria-label="Connection steps">
+          <article><span>1</span><div><h2>Trust this Host</h2><p>On the other computer, download and install the local CA. Your operating system will ask you to confirm.</p><a class="connect-action secondary" href={connect.ca_url} download="redskilled-local-ca.crt"><Download size={17} />Download certificate</a></div></article>
+          <article><span>2</span><div><h2>Open the invitation</h2><p>Copy this private address to the other computer. Both computers must be on the same LAN.</p><button class="connect-action" type="button" onclick={() => void copyConnectLink()}>{#if copied}<Check size={17} />Copied{:else}<Copy size={17} />Copy secure link{/if}</button>{#if connect.connect_urls[0]}<code class="connect-url">{connect.connect_urls[0]}</code>{/if}</div></article>
+          <article><span>3</span><div><h2>Pair that browser</h2><p>Open the link there, verify the certificate fingerprint, then choose Pair this browser.</p></div></article>
+        </section>
+
+        <aside class="connect-proof">
+          <Laptop size={24} aria-hidden="true" />
+          <div><span>Invitation for</span><strong>{connect.name}</strong></div>
+          <div><span>Expires</span><strong>{new Date(connect.expires_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</strong></div>
+          <div><span>CA fingerprint</span><code>{connect.ca_fingerprint}</code></div>
+          <a class="connect-action pair" href={`/pair/${encodeURIComponent(connectToken)}`}><ShieldCheck size={17} />Pair this browser</a>
+          <small>Use this button only on the computer you want to connect.</small>
+        </aside>
+      </div>
+    {/if}
+  </main>
+{:else}
 <div class="shell">
   <aside class="rail">
     <div class="brand"><Logo layout="symbol" on="dark" size={28} /><span>redskilled</span></div>
@@ -338,3 +404,4 @@
     {/if}
   </main>
 </div>
+{/if}

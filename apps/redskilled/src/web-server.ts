@@ -11,6 +11,7 @@ import { REDSKILLED_WEB_ASSETS } from "./web-assets.generated.js";
 import {
   REDSKILLED_WEB_COOKIE,
   authenticateWebSession,
+  inspectWebInvitation,
   listWebDevices,
   redeemWebInvitation,
   revokeWebDevice,
@@ -125,6 +126,20 @@ async function route(request: IncomingMessage, response: ServerResponse, context
     response.end();
     return;
   }
+  if (request.method === "GET" && url.pathname.startsWith("/api/v1/connect/")) {
+    throttle(request, context.rate, "connect", 60, 60_000);
+    const token = decodeURIComponent(url.pathname.slice("/api/v1/connect/".length));
+    const invitation = await inspectWebInvitation(context.paths, token);
+    if (invitation == null) return writeToon(response, 410, { ok: false, error: "This connection invitation has expired or was already used." });
+    return writeToon(response, 200, {
+      ok: true,
+      name: invitation.name,
+      expires_at: invitation.expiresAt,
+      connect_urls: connectUrls(context.tls.names, url.port || String(REDSKILLED_WEB_DEFAULT_PORT), token),
+      ca_url: "/ca.crt",
+      ca_fingerprint: context.tls.fingerprint,
+    });
+  }
 
   if (url.pathname.startsWith("/api/")) {
     const identity = await authenticateWebSession(context.paths, cookie(request, REDSKILLED_WEB_COOKIE));
@@ -151,6 +166,12 @@ async function route(request: IncomingMessage, response: ServerResponse, context
   }
 
   return serveAsset(response, url.pathname);
+}
+
+function connectUrls(names: readonly string[], port: string, token: string): string[] {
+  const usable = names.filter((name) => name !== "localhost" && name !== "127.0.0.1" && name !== "::1" && !name.toLowerCase().startsWith("fe80:"));
+  const ordered = [...usable].sort((left, right) => Number(!/^\d+\.\d+\.\d+\.\d+$/.test(left)) - Number(!/^\d+\.\d+\.\d+\.\d+$/.test(right)));
+  return ordered.map((name) => `https://${name.includes(":") ? `[${name}]` : name}:${port}/connect/${encodeURIComponent(token)}`);
 }
 
 async function snapshot(context: RouteContext, identity: RedskilledWebIdentity): Promise<Record<string, unknown>> {

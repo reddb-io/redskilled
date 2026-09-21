@@ -13,6 +13,8 @@ import { homedir } from "node:os";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { redskilledHomeDir } from "@reddb-io/shared/redskilled-home.js";
+import { createWebInvitation } from "./web-auth.js";
+import { redskilledWebPaths } from "./web-paths.js";
 import redDbIconDataUrl from "./reddb-icon.generated.js";
 
 const SYSTRAY_PACKAGE = "systray2";
@@ -125,7 +127,7 @@ export function startRedskilledSystemTray(options: RedskilledSystemTrayOptions):
       debug: false,
       copyDir: true,
     });
-    tray.onClick((action) => handleTrayClick(action, options, platform, env));
+    tray.onClick((action) => { void handleTrayClick(action, options, platform, env); });
     await tray.ready?.();
     if (stopped) {
       await stopSystray(tray);
@@ -154,12 +156,12 @@ export function startRedskilledSystemTray(options: RedskilledSystemTrayOptions):
   };
 }
 
-function handleTrayClick(
+async function handleTrayClick(
   action: TrayAction,
   options: RedskilledSystemTrayOptions,
   platform: NodeJS.Platform,
   env: NodeJS.ProcessEnv,
-): void {
+): Promise<void> {
   if (action.seq_id === DASHBOARD_ITEM) {
     try {
       (options.openDashboard ?? (() => openDashboardBrowser(platform, env)))();
@@ -169,7 +171,7 @@ function handleTrayClick(
     return;
   }
   if (action.seq_id === PAIR_ITEM) {
-    try { openPairTerminal(platform, env); }
+    try { await openPairingBrowser(platform, env, options.homeDir); }
     catch (error) { options.log?.(`could not open browser pairing: ${errorMessage(error)}`); }
     return;
   }
@@ -203,7 +205,7 @@ function menuItems(version: string, state: RedskilledTrayState): readonly TrayMe
   return [
     statusItem(version, state),
     { title: "Open Dashboard", tooltip: "Open the Redskilled host dashboard", enabled: true },
-    { title: "Pair Browser", tooltip: "Create a one-use HTTPS browser invitation", enabled: true },
+    { title: "Connect Another Computer", tooltip: "Open a guided browser connection", enabled: true },
     { title: "Quit Redskilled", tooltip: "Stop the host daemon; Workers survive", enabled: true },
   ];
 }
@@ -272,54 +274,18 @@ function openDashboardBrowser(platform: NodeJS.Platform, env: NodeJS.ProcessEnv)
   detach("xdg-open", [url], env);
 }
 
-function openPairTerminal(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): void {
-  const entry = process.argv[1];
-  if (entry == null) return;
-  const command = [process.execPath, ...process.execArgv, entry, "web", "pair"];
-  if (platform === "darwin") {
-    const shellCommand = command.map(shellQuote).join(" ");
-    detach("osascript", ["-e", `tell application "Terminal" to do script ${JSON.stringify(shellCommand)}`], env);
-    return;
-  }
-  if (platform === "win32") {
-    const child = spawn(process.execPath, [...process.execArgv, entry, "web", "pair"], {
-      detached: true,
-      env,
-      stdio: "ignore",
-      windowsHide: false,
-    });
-    child.unref();
-    return;
-  }
-  const terminals: readonly [string, readonly string[]][] = [
-    ["xdg-terminal-exec", command],
-    ["kgx", ["--", ...command]],
-    ["gnome-terminal", ["--", ...command]],
-    ["konsole", ["-e", ...command]],
-    ["x-terminal-emulator", ["-e", ...command]],
-  ];
-  tryTerminal(terminals, env, 0);
-}
-
-function tryTerminal(
-  candidates: readonly (readonly [string, readonly string[]])[],
-  env: NodeJS.ProcessEnv,
-  index: number,
-): void {
-  const candidate = candidates[index];
-  if (candidate == null) return;
-  const child = detach(candidate[0], candidate[1], env);
-  child.once("error", () => tryTerminal(candidates, env, index + 1));
+async function openPairingBrowser(platform: NodeJS.Platform, env: NodeJS.ProcessEnv, homeDir?: string): Promise<void> {
+  const invitation = await createWebInvitation(redskilledWebPaths(homeDir), "Another computer");
+  const url = `https://localhost:25051/connect/${encodeURIComponent(invitation.token)}`;
+  if (platform === "darwin") { detach("open", [url], env); return; }
+  if (platform === "win32") { detach("cmd.exe", ["/d", "/s", "/c", "start", "", url], env); return; }
+  detach("xdg-open", [url], env);
 }
 
 function detach(command: string, args: readonly string[], env: NodeJS.ProcessEnv): ChildProcess {
   const child = spawn(command, args, { detached: true, env, stdio: "ignore", windowsHide: true });
   child.unref();
   return child;
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
 async function stopSystray(instance: SystrayInstance): Promise<void> {
