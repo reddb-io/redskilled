@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { decode, encode, type JsonValue } from "@reddb-io/toon";
-  import { Badge, Button, Logo } from "@reddb-io/design-system/base";
-  import { Activity, Bot, Boxes, Brain, FolderGit2, Gauge, RefreshCw, ShieldCheck, Square, WifiOff } from "lucide-svelte";
+  import { AlertDialog, Badge, Button, Field, Input, Logo, Select, Textarea } from "@reddb-io/design-system/base";
+  import { Activity, Bot, Boxes, Brain, FolderGit2, Gauge, Menu, RefreshCw, ShieldCheck, Square, WifiOff, X } from "lucide-svelte";
 
   type View = "overview" | "projects" | "workers" | "worktrees" | "knowledge" | "devices";
   type RecordValue = Record<string, unknown>;
@@ -25,6 +25,7 @@
   let brainResult = $state<unknown>(null);
   let memoryQuery = $state("");
   let memoryResult = $state<unknown>(null);
+  let moreOpen = $state(false);
   let streamAbort: AbortController | null = null;
 
   const workers = $derived((snapshot?.state.workers as RecordValue[] | undefined) ?? []);
@@ -157,23 +158,42 @@
   function formatPercent(value: unknown): string {
     return typeof value === "number" ? `${Math.round(value * 100)}%` : "unbounded";
   }
+
+  function showView(next: View): void {
+    view = next;
+    moreOpen = false;
+  }
 </script>
 
 <svelte:head><meta name="description" content="Redskilled host control plane" /></svelte:head>
+<svelte:window onkeydown={(event) => { if (event.key === "Escape") moreOpen = false; }} />
 
 <div class="shell">
   <aside class="rail">
     <div class="brand"><Logo layout="symbol" on="dark" size={28} /><span>redskilled</span></div>
-    <nav aria-label="Primary">
-      <button class:active={view === "overview"} onclick={() => view = "overview"}><Gauge size={17} />Overview</button>
-      <button class:active={view === "projects"} onclick={() => view = "projects"}><Boxes size={17} />Projects <span>{registrations.length}</span></button>
-      <button class:active={view === "workers"} onclick={() => view = "workers"}><Bot size={17} />Workers <span>{workers.length}</span></button>
-      <button class:active={view === "worktrees"} onclick={() => view = "worktrees"}><FolderGit2 size={17} />Worktrees</button>
-      <button class:active={view === "knowledge"} onclick={() => view = "knowledge"}><Brain size={17} />Knowledge</button>
-      <button class:active={view === "devices"} onclick={() => view = "devices"}><ShieldCheck size={17} />Devices</button>
+    <nav class="desktop-nav" aria-label="Primary">
+      <button class:active={view === "overview"} aria-current={view === "overview" ? "page" : undefined} onclick={() => showView("overview")}><Gauge size={18} />Overview</button>
+      <button class:active={view === "projects"} aria-current={view === "projects" ? "page" : undefined} onclick={() => showView("projects")}><Boxes size={18} />Projects <span>{registrations.length}</span></button>
+      <button class:active={view === "workers"} aria-current={view === "workers" ? "page" : undefined} onclick={() => showView("workers")}><Bot size={18} />Workers <span>{workers.length}</span></button>
+      <button class:active={view === "worktrees"} aria-current={view === "worktrees" ? "page" : undefined} onclick={() => showView("worktrees")}><FolderGit2 size={18} />Worktrees</button>
+      <button class:active={view === "knowledge"} aria-current={view === "knowledge" ? "page" : undefined} onclick={() => showView("knowledge")}><Brain size={18} />Knowledge</button>
+      <button class:active={view === "devices"} aria-current={view === "devices" ? "page" : undefined} onclick={() => showView("devices")}><ShieldCheck size={18} />Devices</button>
     </nav>
+    <nav class="mobile-nav" aria-label="Primary mobile">
+      <button class:active={view === "overview"} aria-current={view === "overview" ? "page" : undefined} onclick={() => showView("overview")}><Gauge size={20} /><span>Overview</span></button>
+      <button class:active={view === "projects"} aria-current={view === "projects" ? "page" : undefined} onclick={() => showView("projects")}><Boxes size={20} /><span>Projects</span></button>
+      <button class:active={view === "workers"} aria-current={view === "workers" ? "page" : undefined} onclick={() => showView("workers")}><Bot size={20} /><span>Workers</span></button>
+      <button class:active={view === "worktrees" || view === "knowledge" || view === "devices"} aria-expanded={moreOpen} aria-controls="mobile-more-menu" onclick={() => moreOpen = !moreOpen}>{#if moreOpen}<X size={20} />{:else}<Menu size={20} />{/if}<span>More</span></button>
+    </nav>
+    {#if moreOpen}
+      <div id="mobile-more-menu" class="more-menu">
+        <button class:active={view === "worktrees"} aria-current={view === "worktrees" ? "page" : undefined} onclick={() => showView("worktrees")}><FolderGit2 size={19} /><span>Worktrees</span></button>
+        <button class:active={view === "knowledge"} aria-current={view === "knowledge" ? "page" : undefined} onclick={() => showView("knowledge")}><Brain size={19} /><span>Knowledge</span></button>
+        <button class:active={view === "devices"} aria-current={view === "devices" ? "page" : undefined} onclick={() => showView("devices")}><ShieldCheck size={19} /><span>Devices</span></button>
+      </div>
+    {/if}
     <div class="rail-foot">
-      <span class="live-dot"></span>
+      <span class="live-dot" aria-hidden="true"></span>
       <div><strong>Host online</strong><small>v{text(snapshot?.state.daemon_version)}</small></div>
     </div>
   </aside>
@@ -181,7 +201,7 @@
   <main>
     <header>
       <div>
-        <p class="eyebrow">{text(snapshot?.state.machine_id_hash, "LOCAL HOST")}</p>
+        <p class="host-id">{text(snapshot?.state.machine_id_hash, "LOCAL HOST")}</p>
         <h1>{view[0].toUpperCase() + view.slice(1)}</h1>
       </div>
       <div class="header-actions">
@@ -190,7 +210,7 @@
       </div>
     </header>
 
-    {#if error}<div class:locked class="notice"><WifiOff size={17} /><span>{error}</span>{#if locked}<code>redskilled web pair</code>{/if}</div>{/if}
+    {#if error}<div class:locked class="notice" role="alert"><WifiOff size={17} /><span>{error}</span>{#if locked}<code>redskilled web pair</code>{/if}</div>{/if}
 
     {#if loading}
       <div class="skeletons" aria-label="Loading host state"><i></i><i></i><i></i></div>
@@ -204,7 +224,7 @@
         </section>
         <section class="split">
           <div class="surface">
-            <div class="section-head"><div><p class="eyebrow">NOW</p><h2>Active work</h2></div><Activity size={18} /></div>
+            <div class="section-head"><h2>Active work</h2><Activity size={18} aria-hidden="true" /></div>
             {#if workers.length === 0}<div class="empty"><Bot size={28} /><strong>No Workers running</strong><p>The host is ready. Dispatch an Issue from a Project to begin.</p></div>{/if}
             {#each workers as worker}
               <div class="activity-row">
@@ -215,9 +235,9 @@
             {/each}
           </div>
           <div class="surface project-queue">
-            <div class="section-head"><div><p class="eyebrow">PROJECTS</p><h2>Demand</h2></div><button class="text-button" onclick={() => view = "projects"}>View all</button></div>
+            <div class="section-head"><h2>Demand</h2><button class="text-button" onclick={() => showView("projects")}>View all projects</button></div>
             {#each registrations.slice(0, 6) as project}
-              <button class="project-row" onclick={() => view = "projects"}>
+              <button class="project-row" onclick={() => showView("projects")}>
                 <div><strong>{text(project.project_label)}</strong><p>{text((project.last_poll as RecordValue | undefined)?.detail, "Awaiting first poll")}</p></div>
                 <span>{number((project.last_poll as RecordValue | undefined)?.depth)}</span>
               </button>
@@ -226,18 +246,23 @@
         </section>
       {:else if view === "projects"}
         <section class="surface table-surface">
-          <div class="section-head"><div><p class="eyebrow">{registrations.length} REGISTERED</p><h2>Projects on this Host</h2></div></div>
+          <div class="section-head"><h2>Projects on this Host</h2><span class="section-count">{registrations.length} registered</span></div>
           <div class="data-table projects-table">
             <div class="table-head"><span>Project</span><span>Renewal</span><span>Queue</span><span>Target</span><span>Actions</span></div>
             {#each registrations as project}
               <div class="table-row">
-                <div><strong>{text(project.project_label)}</strong><small>{text(project.workspace_path)}</small></div>
-                <Badge variant="outline" class={project.renewal === "renewing" ? "status-success" : "status-warning"}>{text(project.renewal, "unknown")}</Badge>
-                <span class="numeric">{number((project.last_poll as RecordValue | undefined)?.depth)}</span>
-                <span class="numeric">{number(project.target)}</span>
-                <div class="actions">
-                  <Button size="sm" variant="secondary" loading={action === `drain:${project.project_label}`} onclick={() => void command("project_drain", { project_label: project.project_label }, `drain:${project.project_label}`)}>Drain</Button>
-                  <Button size="sm" variant="ghost" intent="danger" loading={action === `stop:${project.project_label}`} onclick={() => confirm(`Stop ${project.project_label}?`) && void command("project_stop", { project_label: project.project_label }, `stop:${project.project_label}`)}>Stop</Button>
+                <div class="table-primary"><strong>{text(project.project_label)}</strong><small>{text(project.workspace_path)}</small></div>
+                <div class="table-cell" data-label="Renewal"><Badge variant="outline" class={project.renewal === "renewing" ? "status-success" : "status-warning"}>{text(project.renewal, "unknown")}</Badge></div>
+                <span class="table-cell numeric" data-label="Queue">{number((project.last_poll as RecordValue | undefined)?.depth)}</span>
+                <span class="table-cell numeric" data-label="Target">{number(project.target)}</span>
+                <div class="table-cell actions" data-label="Actions">
+                  <div class="action-group">
+                    <Button size="sm" variant="secondary" loading={action === `drain:${project.project_label}`} onclick={() => void command("project_drain", { project_label: project.project_label }, `drain:${project.project_label}`)}>Drain</Button>
+                    <AlertDialog triggerLabel={`Stop ${text(project.project_label)}`} title={`Stop ${text(project.project_label)}?`} description="The daemon will stop scheduling this Project until it is started again." confirmLabel="Stop Project" onconfirm={() => void command("project_stop", { project_label: project.project_label }, `stop:${project.project_label}`)}>
+                      {#snippet trigger()}Stop{/snippet}
+                      <p>Running work can be interrupted. Confirm only if this Project should leave the active scheduling lane.</p>
+                    </AlertDialog>
+                  </div>
                 </div>
               </div>
             {/each}
@@ -248,18 +273,18 @@
           {#if workers.length === 0}<div class="surface empty"><Bot size={32} /><strong>No Workers running</strong><p>Running agents will appear here with their lifecycle, budget and latest published line.</p></div>{/if}
           {#each workers as worker}
             <article class="surface worker-detail">
-              <div class="worker-title"><div><p class="eyebrow">{text(worker.worker_id)}</p><h2>{text(worker.project_label)}</h2></div><Badge variant="outline" class="status-success">running</Badge></div>
+              <div class="worker-title"><div><code class="identifier">{text(worker.worker_id)}</code><h2>{text(worker.project_label)}</h2></div><Badge variant="outline" class="status-success">running</Badge></div>
               <div class="worker-grid"><div>Phase<strong>{text((worker.display as RecordValue | undefined)?.phase, "Starting")}</strong></div><div>Heartbeat<strong>{age(worker.last_heartbeat_at)}</strong></div><div>Memory<strong>{formatBytes(number((worker.vitals as RecordValue | undefined)?.memory_current_bytes))}</strong></div><div>Started<strong>{age(worker.started_at)}</strong></div></div>
               <pre>{text(worker.last_log_line, "No log line published yet.")}</pre>
-              <div class="actions"><Button size="sm" variant="secondary" intent="danger" loading={action === `worker:${worker.worker_id}`} onclick={() => confirm(`Stop Worker ${worker.worker_id}?`) && void command("worker_stop", { worker_id: worker.worker_id }, `worker:${worker.worker_id}`)}><Square size={13} />Stop Worker</Button></div>
+              <div class="actions"><AlertDialog triggerLabel={`Stop Worker ${text(worker.worker_id)}`} title="Stop this Worker?" description="The current Worker process will be terminated." confirmLabel="Stop Worker" onconfirm={() => void command("worker_stop", { worker_id: worker.worker_id }, `worker:${worker.worker_id}`)}>{#snippet trigger()}<Square size={14} />Stop Worker{/snippet}<p>Its durable evidence remains available, but in-flight work may need to be resumed by a new Worker.</p></AlertDialog></div>
             </article>
           {/each}
         </section>
       {:else if view === "worktrees"}
         <section class="control-grid">
           <div class="surface control-panel">
-            <div class="section-head"><div><p class="eyebrow">PROJECT INVENTORY</p><h2>Worktrees</h2></div></div>
-            <label>Project<select bind:value={selectedProject} onchange={() => worktreeInventory = null}>{#each registrations as project}<option value={text(project.project_label, "")}>{text(project.project_label)}</option>{/each}</select></label>
+            <div class="section-head"><h2>Daemon-owned worktrees</h2></div>
+            <Field label="Project" class="control-field">{#snippet children(control)}<Select {...control} class="field-control" bind:value={selectedProject} onchange={() => worktreeInventory = null}>{#each registrations as project}<option value={text(project.project_label, "")}>{text(project.project_label)}</option>{/each}</Select>{/snippet}</Field>
             <div class="form-actions"><Button size="sm" variant="secondary" disabled={selectedProject === ""} loading={action === "worktree:list"} onclick={() => void listWorktrees()}>Refresh inventory</Button></div>
             <div class="inventory">
               {#each ((worktreeInventory?.worktrees as RecordValue[] | undefined) ?? []) as worktree}
@@ -268,32 +293,32 @@
             </div>
           </div>
           <form class="surface control-panel" onsubmit={(event) => { event.preventDefault(); void addWorktree(); }}>
-            <div class="section-head"><div><p class="eyebrow">INTERACTIVE LANE</p><h2>Add worktree</h2></div></div>
-            <label>Slug<input bind:value={worktreeSlug} required maxlength="64" pattern="[a-z0-9][a-z0-9._-]*" placeholder="ticket-4280" /></label>
-            <label>Branch <small>optional</small><input bind:value={worktreeBranch} maxlength="200" placeholder="feat/ticket-4280" /></label>
-            <label>Base <small>optional</small><input bind:value={worktreeBase} maxlength="200" placeholder="main" /></label>
+            <div class="section-head"><h2>Add interactive worktree</h2></div>
+            <Field label="Slug (required)" help="Lowercase letters, numbers, dots, underscores and hyphens." class="control-field">{#snippet children(control)}<Input {...control} class="field-control" value={worktreeSlug} required maxlength={64} pattern="[a-z0-9][a-z0-9._-]*" placeholder="ticket-4280" oninput={(event) => worktreeSlug = event.currentTarget.value} />{/snippet}</Field>
+            <Field label="Branch" help="Optional. A new branch is derived from the slug when omitted." class="control-field">{#snippet children(control)}<Input {...control} class="field-control" value={worktreeBranch} maxlength={200} placeholder="feat/ticket-4280" oninput={(event) => worktreeBranch = event.currentTarget.value} />{/snippet}</Field>
+            <Field label="Base" help="Optional. Defaults to the Project’s configured base." class="control-field">{#snippet children(control)}<Input {...control} class="field-control" value={worktreeBase} maxlength={200} placeholder="main" oninput={(event) => worktreeBase = event.currentTarget.value} />{/snippet}</Field>
             <div class="form-actions"><Button type="submit" disabled={selectedProject === "" || worktreeSlug.trim() === ""} loading={action === "worktree:add"}>Create worktree</Button></div>
           </form>
         </section>
       {:else if view === "knowledge"}
         <div class="knowledge-stack">
           <section class="surface knowledge-head">
-            <div><p class="eyebrow">DAEMON-HELD STORES</p><h2>Brain & Memory</h2><p>Brain belongs to this Host. Memory is scoped to the selected Project.</p></div>
-            <label>Project<select bind:value={selectedProject}>{#each registrations as project}<option value={text(project.project_label, "")}>{text(project.project_label)}</option>{/each}</select></label>
+            <div><h2>Brain & Memory</h2><p>Brain belongs to this Host. Memory is scoped to the selected Project.</p></div>
+            <Field label="Project" class="knowledge-project">{#snippet children(control)}<Select {...control} class="field-control" bind:value={selectedProject}>{#each registrations as project}<option value={text(project.project_label, "")}>{text(project.project_label)}</option>{/each}</Select>{/snippet}</Field>
           </section>
           <section class="control-grid">
             <div class="surface control-panel">
-              <div class="section-head"><div><p class="eyebrow">HOST</p><h2>Brain</h2></div><Button size="sm" variant="secondary" loading={action === "brain:brain_status"} onclick={() => void callBrain("brain_status")}>Status</Button></div>
-              <label>Search<input bind:value={brainQuery} placeholder="architecture decisions" /></label>
+              <div class="section-head"><h2>Host Brain</h2><Button size="sm" variant="secondary" loading={action === "brain:brain_status"} onclick={() => void callBrain("brain_status")}>Status</Button></div>
+              <Field label="Search" class="control-field">{#snippet children(control)}<Input {...control} class="field-control" value={brainQuery} placeholder="architecture decisions" oninput={(event) => brainQuery = event.currentTarget.value} />{/snippet}</Field>
               <div class="form-actions"><Button size="sm" disabled={brainQuery.trim() === ""} loading={action === "brain:brain_search"} onclick={() => void callBrain("brain_search")}>Search Brain</Button></div>
-              <label>Capture title<input bind:value={brainTitle} placeholder="Decision or durable note" /></label>
-              <label>Content<textarea bind:value={brainContent} rows="4" placeholder="What should this Host remember?"></textarea></label>
+              <Field label="Capture title" class="control-field">{#snippet children(control)}<Input {...control} class="field-control" value={brainTitle} placeholder="Decision or durable note" oninput={(event) => brainTitle = event.currentTarget.value} />{/snippet}</Field>
+              <Field label="Content" class="control-field">{#snippet children(control)}<Textarea {...control} class="field-control" value={brainContent} rows={4} placeholder="What should this Host remember?" oninput={(event) => brainContent = event.currentTarget.value} />{/snippet}</Field>
               <div class="form-actions"><Button size="sm" variant="secondary" disabled={brainTitle.trim() === "" || brainContent.trim() === ""} loading={action === "brain:brain_capture"} onclick={() => void callBrain("brain_capture")}>Capture</Button></div>
               <pre>{pretty(brainResult)}</pre>
             </div>
             <div class="surface control-panel">
-              <div class="section-head"><div><p class="eyebrow">PROJECT</p><h2>Memory</h2></div><Button size="sm" variant="secondary" disabled={selectedProject === ""} loading={action === "memory:memory_stats"} onclick={() => void callMemory("memory_stats")}>Stats</Button></div>
-              <label>Query<input bind:value={memoryQuery} placeholder="how releases are validated" /></label>
+              <div class="section-head"><h2>Project Memory</h2><Button size="sm" variant="secondary" disabled={selectedProject === ""} loading={action === "memory:memory_stats"} onclick={() => void callMemory("memory_stats")}>Stats</Button></div>
+              <Field label="Query" class="control-field">{#snippet children(control)}<Input {...control} class="field-control" value={memoryQuery} placeholder="how releases are validated" oninput={(event) => memoryQuery = event.currentTarget.value} />{/snippet}</Field>
               <div class="form-actions"><Button size="sm" disabled={selectedProject === "" || memoryQuery.trim() === ""} loading={action === "memory:memory_recall"} onclick={() => void callMemory("memory_recall")}>Recall</Button><Button size="sm" variant="secondary" disabled={selectedProject === "" || memoryQuery.trim() === ""} loading={action === "memory:memory_search"} onclick={() => void callMemory("memory_search")}>Search</Button></div>
               <pre>{pretty(memoryResult)}</pre>
             </div>
@@ -301,11 +326,11 @@
         </div>
       {:else}
         <section class="surface table-surface">
-          <div class="section-head"><div><p class="eyebrow">PAIRED BROWSERS</p><h2>Device access</h2></div><code>redskilled web pair</code></div>
+          <div class="section-head"><h2>Device access</h2><code>redskilled web pair</code></div>
           <div class="data-table device-table">
             <div class="table-head"><span>Device</span><span>Paired</span><span>Last seen</span><span>Access</span></div>
             {#each snapshot.devices as device}
-              <div class="table-row"><div><strong>{text(device.name)}</strong><small>{text(device.id)}</small></div><span>{age(device.created_at)}</span><span>{age(device.last_seen_at)}</span><Button size="sm" variant="ghost" intent="danger" disabled={device.current === true} onclick={() => confirm(`Revoke ${device.name}?`) && void command("device_revoke", { device_id: device.id })}>{device.current === true ? "Current" : "Revoke"}</Button></div>
+              <div class="table-row"><div class="table-primary"><strong>{text(device.name)}</strong><small>{text(device.id)}</small></div><span class="table-cell" data-label="Paired">{age(device.created_at)}</span><span class="table-cell" data-label="Last seen">{age(device.last_seen_at)}</span><div class="table-cell actions" data-label="Access"><div class="action-group">{#if device.current === true}<Button size="sm" variant="ghost" disabled>Current</Button>{:else}<AlertDialog triggerLabel={`Revoke ${text(device.name)}`} title={`Revoke ${text(device.name)}?`} description="This browser will immediately lose access to the daemon." confirmLabel="Revoke access" onconfirm={() => void command("device_revoke", { device_id: device.id })}>{#snippet trigger()}Revoke{/snippet}<p>Pairing is required before this device can access the control plane again.</p></AlertDialog>{/if}</div></div></div>
             {/each}
           </div>
         </section>
