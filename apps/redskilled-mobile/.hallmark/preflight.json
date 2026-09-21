@@ -1,0 +1,9 @@
+{
+  "scannedAt": "2026-09-21",
+  "framework": "Expo 57 / React Native 0.86",
+  "fonts": ["Space Grotesk", "JetBrains Mono"],
+  "palette": "Vendored RedDB Application Theme / dark Color Scheme",
+  "motion": "motion-cut; no animation library",
+  "spacing": "vendored compact density plus native named scale",
+  "preserve": ["brand assets", "font bytes", "palette", "density", "runtime behavior"]
+}

@@ -22,16 +22,20 @@ describe("camera QR pairing contract", () => {
 
   it("limits scanning to QR and routes scan data through the manual pairing path", () => {
     const app = readFileSync(join(appRoot, "App.tsx"), "utf8");
+    const screens = readFileSync(join(appRoot, "src", "ui", "screens.tsx"), "utf8");
     expect(app).toContain("useCameraPermissions()");
-    expect(app).toContain('barcodeScannerSettings={{ barcodeTypes: ["qr"] }}');
+    expect(screens).toContain('barcodeScannerSettings={{ barcodeTypes: ["qr"] }}');
     expect(app).toMatch(/async function pairHost\(invitation: string\)[\s\S]*pairRedskilledHost\(invitation,/);
     expect(app).toContain("await pairHost(data);");
-    expect(app).toContain("pairHost(pairingCode)");
+    expect(app).toContain("onPair={() => void pairHost(pairingCode)}");
+    expect(screens).toContain("onPair={onPair}");
   });
 
   it("requests camera permission only from an explicit action", () => {
     const app = readFileSync(join(appRoot, "App.tsx"), "utf8");
-    expect(app).toContain("onPress={() => void requestCameraPermission()}");
+    const screens = readFileSync(join(appRoot, "src", "ui", "screens.tsx"), "utf8");
+    expect(app).toContain("onAllowCamera={() => void requestCameraPermission()}");
+    expect(screens).toContain("onPress={onAllowCamera}");
     expect(app).not.toMatch(/useEffect\([\s\S]{0,200}requestCameraPermission/);
   });
 });

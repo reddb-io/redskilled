@@ -1,4 +1,4 @@
-import type { PropsWithChildren, ReactNode } from "react";
+import { useState, type PropsWithChildren, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -14,6 +14,12 @@ import {
 } from "react-native";
 
 import { colors, density, radii, spacing, type } from "./tokens";
+
+/**
+ * Hallmark · P5 H5 E4 S5 R5 V4 · genre: modern-minimal
+ * tone: technical-austere · macrostructure: Workbench
+ * design-system: design.md · designed-as-app
+ */
 
 const REDDB_HORIZONTAL_ASPECT_RATIO = 509 / 128;
 
@@ -64,6 +70,85 @@ export function SectionHeading({
   );
 }
 
+export function ScreenHeading({
+  action,
+  description,
+  title,
+}: {
+  action?: ReactNode;
+  description: string;
+  title: string;
+}) {
+  return (
+    <View style={styles.screenHeading}>
+      <View style={styles.screenHeadingCopy}>
+        <Text accessibilityRole="header" style={styles.screenTitle}>{title}</Text>
+        <Text style={styles.screenDescription}>{description}</Text>
+      </View>
+      {action == null ? null : <View style={styles.screenHeadingAction}>{action}</View>}
+    </View>
+  );
+}
+
+export type AppDestination = "dispatch" | "workers" | "hosts";
+
+export function BottomNavigation({
+  active,
+  hostCount,
+  labels,
+  onChange,
+  workerCount,
+}: {
+  active: AppDestination;
+  hostCount: number;
+  labels: Readonly<Record<AppDestination, string>>;
+  onChange: (destination: AppDestination) => void;
+  workerCount: number;
+}) {
+  const destinations: ReadonlyArray<{
+    id: AppDestination;
+    label: string;
+    count?: number;
+  }> = [
+    { id: "dispatch", label: labels.dispatch },
+    { id: "workers", label: labels.workers, count: workerCount },
+    { id: "hosts", label: labels.hosts, count: hostCount },
+  ];
+
+  return (
+    <View accessibilityRole="tablist" style={styles.navigation}>
+      {destinations.map((destination) => {
+        const selected = active === destination.id;
+        return (
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            key={destination.id}
+            onPress={() => onChange(destination.id)}
+            style={({ pressed }) => [
+              styles.navigationItem,
+              selected && styles.navigationItemActive,
+              pressed && styles.navigationItemPressed,
+            ]}
+          >
+            <Text numberOfLines={1} style={[
+              styles.navigationLabel,
+              selected && styles.navigationLabelActive,
+            ]}>
+              {destination.label}
+            </Text>
+            {destination.count == null ? null : (
+              <Text style={[styles.navigationCount, selected && styles.navigationCountActive]}>
+                {destination.count}
+              </Text>
+            )}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 export function Pill({ glyph, label }: { glyph?: string; label: string }) {
   return (
     <View style={styles.pill}>
@@ -78,19 +163,23 @@ type ButtonVariant = "primary" | "secondary" | "ghost";
 export function Button({
   label,
   loading = false,
+  state = "default",
   tone = "default",
   variant = "primary",
   ...props
 }: Omit<PressableProps, "children" | "style"> & {
   label: string;
   loading?: boolean;
+  state?: "default" | "error" | "success";
   tone?: "default" | "danger";
   variant?: ButtonVariant;
 }) {
   const disabled = props.disabled === true || loading;
+  const [focused, setFocused] = useState(false);
   const contentColor = variant === "primary"
     ? colors.onPrimary
     : tone === "danger" ? colors.danger : colors.foreground;
+  const stateGlyph = state === "error" ? "!" : state === "success" ? "✓" : null;
 
   return (
     <Pressable
@@ -98,11 +187,22 @@ export function Button({
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       disabled={disabled}
+      onBlur={(event) => {
+        setFocused(false);
+        props.onBlur?.(event);
+      }}
+      onFocus={(event) => {
+        setFocused(true);
+        props.onFocus?.(event);
+      }}
       style={({ pressed }) => [
         styles.button,
         variant === "primary" && styles.buttonPrimary,
         variant === "secondary" && styles.buttonSecondary,
         variant === "ghost" && styles.buttonGhost,
+        state === "error" && styles.buttonError,
+        state === "success" && styles.buttonSuccess,
+        focused && styles.buttonFocused,
         disabled && styles.buttonDisabled,
         pressed && !disabled && styles.buttonPressed,
       ]}
@@ -110,27 +210,45 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={contentColor} size="small" />
       ) : (
-        <Text style={[styles.buttonText, { color: contentColor }]}>{label}</Text>
+        <View style={styles.buttonContent}>
+          {stateGlyph == null ? null : (
+            <Text style={[styles.buttonStateGlyph, { color: contentColor }]}>{stateGlyph}</Text>
+          )}
+          <Text numberOfLines={1} style={[styles.buttonText, { color: contentColor }]}>{label}</Text>
+        </View>
       )}
     </Pressable>
   );
 }
 
 export function Field({
+  helper,
   invalid = false,
   label,
   ...props
-}: TextInputProps & { invalid?: boolean; label: string }) {
+}: TextInputProps & { helper?: string; invalid?: boolean; label: string }) {
+  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         {...props}
         accessibilityLabel={props.accessibilityLabel ?? label}
+        onBlur={(event) => {
+          setFocused(false);
+          props.onBlur?.(event);
+        }}
+        onFocus={(event) => {
+          setFocused(true);
+          props.onFocus?.(event);
+        }}
         placeholderTextColor={colors.mutedStrong}
         selectionColor={colors.primary}
-        style={[styles.input, invalid && styles.inputInvalid, props.style]}
+        style={[styles.input, focused && styles.inputFocused, invalid && styles.inputInvalid, props.style]}
       />
+      <Text style={[styles.fieldHelper, invalid && styles.fieldHelperInvalid]}>
+        {helper ?? " "}
+      </Text>
     </View>
   );
 }
@@ -175,6 +293,29 @@ const styles = StyleSheet.create({
     borderWidth: spacing.hairline,
     gap: density.gapLg,
     padding: density.insetMd,
+  },
+  screenHeading: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: spacing.lg,
+    justifyContent: "space-between",
+  },
+  screenHeadingCopy: { flex: 1, gap: spacing.sm },
+  screenHeadingAction: { paddingTop: density.gapSm },
+  screenTitle: {
+    color: colors.foreground,
+    fontFamily: type.family.sans,
+    fontSize: type.size.display,
+    fontWeight: type.weight.bold,
+    letterSpacing: -0.8,
+    lineHeight: 36,
+  },
+  screenDescription: {
+    color: colors.muted,
+    fontFamily: type.family.sans,
+    fontSize: type.size.sm,
+    lineHeight: 21,
+    maxWidth: 440,
   },
   sectionHeading: {
     alignItems: "flex-end",
@@ -239,11 +380,20 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: density.insetMd,
   },
-  buttonPrimary: { backgroundColor: colors.primary },
+  buttonPrimary: { backgroundColor: colors.foreground },
   buttonSecondary: { backgroundColor: "transparent", borderColor: colors.borderStrong },
   buttonGhost: { alignSelf: "flex-start", backgroundColor: "transparent", minHeight: 36 },
   buttonDisabled: { opacity: 0.5 },
-  buttonPressed: { opacity: 0.82 },
+  buttonError: { borderColor: colors.danger },
+  buttonSuccess: { borderColor: colors.foreground },
+  buttonFocused: { borderColor: colors.primary },
+  buttonPressed: { opacity: 0.78, transform: [{ scale: 0.985 }] },
+  buttonContent: { alignItems: "center", flexDirection: "row", gap: density.gapMd },
+  buttonStateGlyph: {
+    fontFamily: type.family.mono,
+    fontSize: type.size.sm,
+    fontWeight: type.weight.bold,
+  },
   buttonText: {
     fontFamily: type.family.sans,
     fontSize: type.size.sm,
@@ -270,6 +420,15 @@ const styles = StyleSheet.create({
     paddingVertical: density.gapLg,
   },
   inputInvalid: { borderColor: colors.danger },
+  inputFocused: { borderColor: colors.primary },
+  fieldHelper: {
+    color: colors.muted,
+    fontFamily: type.family.sans,
+    fontSize: type.size.xs,
+    lineHeight: 18,
+    minHeight: 18,
+  },
+  fieldHelperInvalid: { color: colors.danger },
   emptyState: {
     alignItems: "center",
     borderColor: colors.border,
@@ -333,4 +492,38 @@ const styles = StyleSheet.create({
     fontSize: type.size.sm,
     lineHeight: 20,
   },
+  navigation: {
+    backgroundColor: colors.surfaceSunken,
+    borderTopColor: colors.border,
+    borderTopWidth: spacing.hairline,
+    flexDirection: "row",
+    paddingHorizontal: spacing.sm,
+    paddingTop: density.gapSm,
+  },
+  navigationItem: {
+    alignItems: "center",
+    borderTopColor: colors.surfaceSunken,
+    borderTopWidth: 2,
+    flex: 1,
+    flexDirection: "row",
+    gap: density.gapSm,
+    justifyContent: "center",
+    minHeight: 58,
+    paddingHorizontal: spacing.xs,
+  },
+  navigationItemActive: { borderTopColor: colors.primary },
+  navigationItemPressed: { opacity: 0.72 },
+  navigationLabel: {
+    color: colors.mutedStrong,
+    fontFamily: type.family.sans,
+    fontSize: type.size.xs,
+    fontWeight: type.weight.medium,
+  },
+  navigationLabelActive: { color: colors.foreground },
+  navigationCount: {
+    color: colors.mutedStrong,
+    fontFamily: type.family.mono,
+    fontSize: 10,
+  },
+  navigationCountActive: { color: colors.primary },
 });

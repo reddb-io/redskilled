@@ -83,7 +83,9 @@ describe("Redskilled Mobile Design System adoption", () => {
     const packageManifest = readFileSync(join(appRoot, "package.json"), "utf8");
 
     expect(packageManifest).not.toMatch(/design-system/);
-    expect(runtimeSources.join("\n")).not.toMatch(/\.\.\/design-system/);
+    expect(runtimeSources.join("\n")).not.toMatch(
+      /from\s+["'](?:\.\.\/){3,}design-system(?:\/|["'])/,
+    );
     expect(appSource).not.toMatch(/#[0-9a-f]{6}/i);
     for (const path of sourceFiles(sourceRoot).filter((path) => !path.endsWith("tokens.ts"))) {
       expect(readFileSync(path, "utf8"), path).not.toMatch(/#[0-9a-f]{6}/i);
