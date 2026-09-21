@@ -14,6 +14,7 @@ interface AuthState { readonly version: 1; readonly invitations: readonly Invita
 const EMPTY: AuthState = { version: 1, invitations: [], sessions: [], devices: [] };
 
 export interface RedskilledWebIdentity { readonly token: string; readonly csrf: string; readonly device: RedskilledWebDevice; }
+export interface RedskilledWebInvitation { readonly expiresAt: string; readonly name: string; }
 
 export async function createWebInvitation(paths: RedskilledWebPaths, name = "Browser"): Promise<{ token: string; expiresAt: string }> {
   const token = secret();
@@ -40,6 +41,11 @@ export async function redeemWebInvitation(paths: RedskilledWebPaths, token: stri
     };
   });
   return identity;
+}
+
+export async function inspectWebInvitation(paths: RedskilledWebPaths, token: string): Promise<RedskilledWebInvitation | null> {
+  const invitation = liveInvitations(await readState(paths)).find((entry) => equal(entry.hash, hash(token)));
+  return invitation == null ? null : { expiresAt: invitation.expires_at, name: invitation.name };
 }
 
 export async function authenticateWebSession(paths: RedskilledWebPaths, token: string | undefined): Promise<RedskilledWebIdentity | null> {

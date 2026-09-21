@@ -41,6 +41,13 @@ export async function ensureRedskilledWebTls(paths: RedskilledWebPaths): Promise
   }
 
   const names = hostNames();
+  const persisted = await readHostCertificate(paths, caCertificate, names);
+  if (persisted != null) {
+    const der = forge.asn1.toDer(forge.pki.certificateToAsn1(caCertificate)).getBytes();
+    const fingerprint = createHash("sha256").update(Buffer.from(der, "binary")).digest("hex").match(/.{2}/g)!.join(":").toUpperCase();
+    return { ...persisted, ca: forge.pki.certificateToPem(caCertificate), fingerprint, names };
+  }
+
   const pair = forge.pki.rsa.generateKeyPair(2_048);
   const certificate = forge.pki.createCertificate();
   certificate.publicKey = pair.publicKey;
@@ -64,6 +71,32 @@ export async function ensureRedskilledWebTls(paths: RedskilledWebPaths): Promise
   const der = forge.asn1.toDer(forge.pki.certificateToAsn1(caCertificate)).getBytes();
   const fingerprint = createHash("sha256").update(Buffer.from(der, "binary")).digest("hex").match(/.{2}/g)!.join(":").toUpperCase();
   return { key, cert, ca, fingerprint, names };
+}
+
+async function readHostCertificate(
+  paths: RedskilledWebPaths,
+  caCertificate: forge.pki.Certificate,
+  names: readonly string[],
+): Promise<{ readonly key: string; readonly cert: string } | null> {
+  try {
+    const [key, cert] = await Promise.all([
+      readFile(paths.privateKey, "utf8"),
+      readFile(paths.certificate, "utf8"),
+    ]);
+    const privateKey = forge.pki.privateKeyFromPem(key);
+    const certificate = forge.pki.certificateFromPem(cert);
+    const publicKey = certificate.publicKey as forge.pki.rsa.PublicKey;
+    const now = Date.now();
+    if (certificate.validity.notBefore.getTime() > now || certificate.validity.notAfter.getTime() <= now + 60_000) return null;
+    if (!caCertificate.verify(certificate)) return null;
+    if (publicKey.n.compareTo(privateKey.n) !== 0 || publicKey.e.compareTo(privateKey.e) !== 0) return null;
+    const extension = certificate.getExtension("subjectAltName") as { altNames?: readonly { value?: string; ip?: string }[] } | null;
+    const covered = new Set((extension?.altNames ?? []).flatMap((entry) => [entry.value, entry.ip].filter((value): value is string => typeof value === "string")));
+    if (names.some((name) => !covered.has(name))) return null;
+    return { key, cert };
+  } catch {
+    return null;
+  }
 }
 
 function hostNames(): string[] {
