@@ -1,6 +1,6 @@
 {
   "name": "@reddb-io/redskilled-tray-runtime",
-  "version": "4.7.0",
+  "version": "4.7.1",
   "private": true,
   "description": "Pinned native system tray runtime shipped inside the signed Redskilled workstation set.",
   "license": "Apache-2.0",
