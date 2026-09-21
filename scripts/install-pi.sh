@@ -131,8 +131,34 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "$1 is required"
 }
 
+resolve_pi() {
+  local candidate=""
+  local newest=""
+
+  candidate="$(command -v pi 2>/dev/null || true)"
+  if [ -n "$candidate" ] && "$candidate" --version >/dev/null 2>&1; then
+    printf '%s' "$candidate"
+    return 0
+  fi
+
+  # A package postinstall can run with mise's shims on PATH but without a
+  # selected Node version. The real global executable is still installed;
+  # pick the newest working one rather than failing through the inactive shim.
+  for candidate in "$HOME"/.local/share/mise/installs/node/*/bin/pi; do
+    [ -x "$candidate" ] || continue
+    "$candidate" --version >/dev/null 2>&1 || continue
+    if [ -z "$newest" ] || [ "$candidate" -nt "$newest" ]; then
+      newest="$candidate"
+    fi
+  done
+
+  [ -n "$newest" ] || return 1
+  printf '%s' "$newest"
+}
+
+PI_BIN="pi"
 if [ "$DRY_RUN" != "true" ]; then
-  require_cmd pi
+  PI_BIN="$(resolve_pi)" || die "pi is required"
   require_cmd jq
 fi
 
@@ -202,9 +228,9 @@ invoke_pi_install() {
   fi
   log "installing $plugin_name via \`pi install $spec\`"
   if [ "$SCOPE" = "project" ]; then
-    ( cd "$TARGET_DIR" && pi install -l "$spec" )
+    ( cd "$TARGET_DIR" && "$PI_BIN" install -l "$spec" )
   else
-    pi install "$spec"
+    "$PI_BIN" install "$spec"
   fi
   write_manifest "$plugin_name" "$spec" "$source_kind"
 }
@@ -218,7 +244,7 @@ invoke_pi_remove() {
     return 0
   fi
   log "removing $plugin_name via \`pi remove $spec\`"
-  pi remove "$spec" || warn "pi remove reported an error for $plugin_name (continuing)"
+  "$PI_BIN" remove "$spec" || warn "pi remove reported an error for $plugin_name (continuing)"
   remove_from_manifest "$plugin_name"
 }
 
