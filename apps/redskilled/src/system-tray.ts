@@ -56,7 +56,7 @@ type SystrayConstructor = new (options: {
   readonly menu: {
     readonly icon: string;
     readonly isTemplateIcon: false;
-    readonly title: "";
+    readonly title: "Redskilled";
     readonly tooltip: string;
     readonly items: readonly TrayMenuItem[];
   };
@@ -120,7 +120,7 @@ export function startRedskilledSystemTray(options: RedskilledSystemTrayOptions):
       menu: {
         icon: redDbIconDataUrl.replace(/^data:image\/png;base64,/, ""),
         isTemplateIcon: false,
-        title: "",
+        title: "Redskilled",
         tooltip,
         items: menuItems(options.version, readState(options)),
       },
