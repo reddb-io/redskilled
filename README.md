@@ -47,9 +47,10 @@ remain off while runtime and npm releases proceed without Android credentials.
 
 ## Diagnostic logs
 
-`redskilled logs --path` prints the daemon diagnostic file location without
-starting a daemon. `redskilled logs --open` and **Open log** in the tray menu open
-that existing file with the desktop's file association.
+With the runtime already installed and selected through mise,
+`mise exec -- redskilled logs --path` prints the daemon diagnostic file location
+without starting a daemon. `mise exec -- redskilled logs --open` and **Open log**
+in the tray menu open that existing file with the desktop's file association.
 
 - Linux: `$XDG_STATE_HOME/redskilled/logs/daemon.log`, or
   `~/.local/state/redskilled/logs/daemon.log` when XDG state is unset/relative.
