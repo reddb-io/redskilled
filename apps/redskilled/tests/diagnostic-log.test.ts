@@ -76,7 +76,7 @@ describe("bounded diagnostic rotation", () => {
     const path = join(root(), "daemon.log");
     const module = new URL("../../../packages/shared/diagnostic-log.ts", import.meta.url).href;
     const run = (id: number) => new Promise<void>((resolve, reject) => {
-      const script = `import { createDiagnosticWriter } from ${JSON.stringify(module)}; const w=createDiagnosticWriter({path:${JSON.stringify(path)},maxBytes:512}); for(let i=0;i<10;i++) if(!w.write('process ${id} record '+i)) process.exitCode=1;`;
+      const script = `import { createDiagnosticWriter } from ${JSON.stringify(module)}; const w=createDiagnosticWriter({path:${JSON.stringify(path)},maxBytes:512,onError:(error)=>console.error(error)}); for(let i=0;i<10;i++) if(!w.write('process ${id} record '+i)) process.exitCode=1;`;
       const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], { stdio: ["ignore", "ignore", "pipe"] });
       let error = "";
       child.stderr.on("data", (chunk) => { error += chunk; });

@@ -424,7 +424,7 @@ jobs:
       # supported desktop endpoint families. No desktop session is required.
       - name: Test bounded diagnostics and tray log access
         if: env.RUN_ACP == 'true'
-        run: pnpm -C apps/redskilled exec vitest run tests/diagnostic-log.test.ts tests/system-tray.test.ts
+        run: pnpm -C apps/redskilled exec vitest run tests/diagnostic-log.test.ts tests/system-tray.test.ts tests/help-offline.test.ts
 
       # The broad `apps/redskilled` gate is deliberately absent from this
       # workflow (#3878), so the five supported Agents need a focused suite of

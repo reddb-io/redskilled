@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import {
   chmodSync, closeSync, constants, fstatSync, ftruncateSync, lstatSync,
   mkdirSync, openSync, readFileSync, readSync, renameSync, rmdirSync,
-  statSync, unlinkSync, writeFileSync, writeSync,
+  unlinkSync, writeFileSync, writeSync,
 } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, posix, win32 } from "node:path";
@@ -169,7 +169,12 @@ function lockLog(path: string): () => void {
         if (Number.isSafeInteger(pid) && pid > 0) {
           try { process.kill(pid, 0); } catch (probe) { stale = (probe as NodeJS.ErrnoException).code === "ESRCH"; }
         }
-      } catch (probe) { stale = absent(probe) && Date.now() - statSync(lock).mtimeMs > 30_000; }
+      } catch (probe) {
+        // The owner file and then its directory disappear during ordinary
+        // unlock. Do not stat the directory again here: it may already be gone,
+        // and that race is contention to retry, not a lost diagnostic record.
+        stale = absent(probe) && Date.now() - observed.mtimeMs > 30_000;
+      }
       if (stale) {
         // Only one reaper may clear the stale owner. The fixed marker avoids
         // two reapers removing a successor's lock after the first released it.
