@@ -20,6 +20,8 @@ import { deathLaneFileIn, installDeathRecorder } from "@reddb-io/shared/death-re
 import { formatDeathAttributions, runBootDeathReaper } from "@reddb-io/shared/death-attribution.js";
 import { redskilledHomeDir } from "@reddb-io/shared/redskilled-home.js";
 import { sweepLaneTemps } from "@reddb-io/shared/lane-retention.js";
+import { installDiagnosticLogging } from "@reddb-io/shared/diagnostic-log.js";
+import { runLogsCommand, LOGS_USAGE } from "./logs-command.js";
 import {
   ensureRedskilledDaemon,
   readRedskilledHostState,
@@ -105,6 +107,7 @@ Commands:
   dashboard [local]     the host's screen; local scopes it to this repo
   github-spend          report which operations spent GitHub budget
   incidents             list/show bounded CPU and memory forensic captures
+  logs --path|--open     locate or open the daemon diagnostic log (offline)
   link                  connect Redskilled Mobile; prints a pairing URI and QR
   web                   serve and administer the HTTPS browser dashboard
   unit                  install | uninstall | status — the optional supervisor
@@ -118,6 +121,7 @@ Run \`redskilled <command> --help\` for a command's own usage.
 
 /** Each subcommand's scoped usage — same contract, same offline answer. */
 const COMMAND_USAGE = {
+  logs: LOGS_USAGE,
   serve: `Usage: redskilled serve [options]
 
 Runs the daemon in this process. Every path is a flag and none is derived
@@ -468,6 +472,7 @@ export async function runRedskilledCli(argv: readonly string[]): Promise<number>
     | "dashboard"
     | "github-spend"
     | "incidents"
+    | "logs"
     | "link"
     | "web"
     | "unit"
@@ -485,6 +490,7 @@ export async function runRedskilledCli(argv: readonly string[]): Promise<number>
       dashboard: {},
       "github-spend": {},
       incidents: {},
+      logs: {},
       link: {},
       web: {},
       unit: {},
@@ -503,6 +509,8 @@ export async function runRedskilledCli(argv: readonly string[]): Promise<number>
   }
 
   if (command === "serve") {
+    const diagnostics = installDiagnosticLogging();
+    try {
     const { values } = parseFlags(args, SERVE_FLAGS);
     const hostConfig = await readRedskilledHostConfig(homedir());
     const hostSettings = resolveRedskilledHostSettings({
@@ -685,6 +693,10 @@ export async function runRedskilledCli(argv: readonly string[]): Promise<number>
     custodyTender.stop();
     deaths.phase("closed");
     return 0;
+    } catch (error) {
+      diagnostics.error(error);
+      throw error;
+    } finally { diagnostics.close(); }
   }
 
   if (command === "acp") {
@@ -702,6 +714,7 @@ export async function runRedskilledCli(argv: readonly string[]): Promise<number>
   if (command === "dashboard") return await runDashboard(args);
   if (command === "github-spend") return await runGithubSpend(args);
   if (command === "incidents") return await runResourceIncidents(args);
+  if (command === "logs") return await runLogsCommand(args);
   if (command === "link") return runRedskilledLinkCommand(args);
   if (command === "web") return runRedskilledWebCompanion(args);
   if (command === "unit") return await runUnit(args);

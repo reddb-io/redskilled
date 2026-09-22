@@ -16,12 +16,15 @@ import { redskilledHomeDir } from "@reddb-io/shared/redskilled-home.js";
 import { createWebInvitation } from "./web-auth.js";
 import { redskilledWebPaths } from "./web-paths.js";
 import redDbIconDataUrl from "./reddb-icon.generated.js";
+import { diagnosticLogPath, openDiagnosticPath } from "@reddb-io/shared/diagnostic-log.js";
+import { openDaemonLog } from "./logs-command.js";
 
 const SYSTRAY_PACKAGE = "systray2";
 const STATUS_ITEM = 0;
 const DASHBOARD_ITEM = 1;
 const PAIR_ITEM = 2;
 const QUIT_ITEM = 3;
+const LOG_ITEM = 4;
 
 interface TrayMenuItem {
   readonly title: string;
@@ -74,6 +77,7 @@ export interface RedskilledSystemTrayOptions {
   readonly state: () => RedskilledTrayState;
   readonly quit: () => void | Promise<void>;
   readonly openDashboard?: () => void;
+  readonly openLog?: (path: string) => Promise<void>;
   readonly env?: NodeJS.ProcessEnv;
   readonly platform?: NodeJS.Platform;
   readonly homeDir?: string;
@@ -127,7 +131,7 @@ export function startRedskilledSystemTray(options: RedskilledSystemTrayOptions):
       debug: false,
       copyDir: true,
     });
-    tray.onClick((action) => { void handleTrayClick(action, options, platform, env); });
+    tray.onClick((action) => { void handleTrayClick(action, options, platform, env, tray); });
     await tray.ready?.();
     if (stopped) {
       await stopSystray(tray);
@@ -161,7 +165,23 @@ async function handleTrayClick(
   options: RedskilledSystemTrayOptions,
   platform: NodeJS.Platform,
   env: NodeJS.ProcessEnv,
+  tray: SystrayInstance | null,
 ): Promise<void> {
+  if (action.seq_id === LOG_ITEM) {
+    const path = diagnosticLogPath("daemon", { platform, env, homeDir: options.homeDir });
+    try {
+      await (options.openLog ?? ((target) => openDaemonLog(target, (file) => openDiagnosticPath(file, { platform, env }))))(path);
+      await tray?.sendAction({ type: "update-item", seq_id: LOG_ITEM, item: { title: "Open log", tooltip: path, enabled: true } });
+    } catch (error) {
+      options.log?.(`could not open diagnostic log: ${errorMessage(error)}`);
+      try {
+        await tray?.sendAction({ type: "update-item", seq_id: LOG_ITEM, item: {
+          title: "Open log — failed", tooltip: `Could not open ${path}. See journalctl --user -u redskilled.service.`, enabled: true,
+        } });
+      } catch { /* the opener failure has already reached the diagnostic sink */ }
+    }
+    return;
+  }
   if (action.seq_id === DASHBOARD_ITEM) {
     try {
       (options.openDashboard ?? (() => openDashboardBrowser(platform, env)))();
@@ -207,6 +227,7 @@ function menuItems(version: string, state: RedskilledTrayState): readonly TrayMe
     { title: "Open Dashboard", tooltip: "Open the Redskilled host dashboard", enabled: true },
     { title: "Connect Another Computer", tooltip: "Open a guided browser connection", enabled: true },
     { title: "Quit Redskilled", tooltip: "Stop the host daemon; Workers survive", enabled: true },
+    { title: "Open log", tooltip: "Open the daemon diagnostic log", enabled: true },
   ];
 }
 

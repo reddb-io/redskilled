@@ -2,6 +2,7 @@
 import { realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { diagnosticStreamForCommand, installDiagnosticLogging } from "@reddb-io/shared/diagnostic-log.js";
 
 import { createRedskillsOperatorAcpClient } from "@reddb-io/redskilled/acp-operator-client";
 import { encodeInvitation, encodeInvitationUri } from "@reddb-io/red-skills-link-protocol/crypto";
@@ -218,9 +219,15 @@ function value(args: readonly string[], name: string): string | undefined {
 const invokedDirectly = process.argv[1] != null &&
   realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 if (invokedDirectly) {
+  const diagnosticStream = diagnosticStreamForCommand("link", process.argv.slice(2));
+  const diagnostics = diagnosticStream == null ? undefined : installDiagnosticLogging(diagnosticStream);
+  // `relay` starts a server then returns; its diagnostic lifetime is the process,
+  // not the routing promise. Pair/invite and other short CLI routes stay untouched.
+  if (diagnostics) process.once("exit", () => diagnostics.close());
   runRedskilledLinkCli(process.argv.slice(2)).then(
     (code) => { process.exitCode = code; },
     (error: unknown) => {
+      diagnostics?.error(error);
       process.stderr.write(`redskilled-link: ${error instanceof Error ? error.message : String(error)}\n`);
       process.exitCode = 1;
     },

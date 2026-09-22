@@ -45,6 +45,37 @@ remains off until signing and consumers have passed the migration checks. See
 Mobile publishing has its own `REDSKILLED_MOBILE_PUBLISH_ENABLED` switch. It may
 remain off while runtime and npm releases proceed without Android credentials.
 
+## Diagnostic logs
+
+`redskilled logs --path` prints the daemon diagnostic file location without
+starting a daemon. `redskilled logs --open` and **Open log** in the tray menu open
+that existing file with the desktop's file association.
+
+- Linux: `$XDG_STATE_HOME/redskilled/logs/daemon.log`, or
+  `~/.local/state/redskilled/logs/daemon.log` when XDG state is unset/relative.
+- Windows: `%LOCALAPPDATA%\redskilled\logs\daemon.log`.
+- macOS: `~/Library/Logs/redskilled/daemon.log`.
+
+The serving daemon retains at most **five files of 10 MiB each**: `daemon.log`
+and `.1` through `.4` (newest archive first). Rotation runs while the daemon is
+active, not just during upgrades. Files are owner-only where the OS supports
+Unix permissions. Lines have timestamps and severity; oversized lines are
+omitted with a marker. Known credentials and payload fields are redacted before
+writing. Logs remain local; no diagnostic upload is performed.
+
+The web server, remote-link host and relay use the same policy independently in
+`web.log`, `link.log` and `relay.log` in that directory. Pairing, invitations and
+other short CLI commands are not captured; machine-readable stdout is unchanged.
+
+stderr/journal remains available, including when file writes fail. On Linux,
+`journalctl --user -u redskilled.service` also covers early loader failures and
+native crashes that cannot run a JavaScript handler. Older releases have no
+diagnostic file until an upgraded daemon has started.
+
+Structured state such as `~/.red/redskilled/redskilled.log.toonl`, death records,
+and Worker logs keeps its existing format, paths and retention rules. Those
+files are not interchangeable with the disposable diagnostic log.
+
 ## Plugin content
 
 - [Dev](https://github.com/reddb-io/red-skills/tree/main/plugins/dev/)
