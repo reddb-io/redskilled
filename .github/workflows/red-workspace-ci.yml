@@ -419,6 +419,13 @@ jobs:
         if: env.RUN_ACP == 'true'
         run: pnpm -C apps/redskilled test:acp-local-transport
 
+      # The broad daemon suite is not a PR gate: explicitly exercise log files,
+      # active rotation, process races, crash capture and tray dispatch on both
+      # supported desktop endpoint families. No desktop session is required.
+      - name: Test bounded diagnostics and tray log access
+        if: env.RUN_ACP == 'true'
+        run: pnpm -C apps/redskilled exec vitest run tests/diagnostic-log.test.ts tests/system-tray.test.ts tests/help-offline.test.ts
+
       # The broad `apps/redskilled` gate is deliberately absent from this
       # workflow (#3878), so the five supported Agents need a focused suite of
       # their own: without it, a sixth Agent, a dropped Agent, or one admitted

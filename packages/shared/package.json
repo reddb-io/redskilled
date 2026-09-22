@@ -17,6 +17,7 @@
     "./death-presence.js": "./death-presence.ts",
     "./death-record.js": "./death-record.ts",
     "./default-fleet-width.js": "./default-fleet-width.ts",
+    "./diagnostic-log.js": "./diagnostic-log.ts",
     "./engine-node.js": "./engine-node.ts",
     "./entrypoint-cli.js": "./entrypoint-cli.ts",
     "./github-batch.js": "./github-batch.ts",
