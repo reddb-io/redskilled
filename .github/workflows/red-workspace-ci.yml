@@ -62,6 +62,7 @@ jobs:
           fetch-depth: 0
 
       - name: Compose pinned skills
+        if: env.RUN_ANY == 'true'
         run: node scripts/prepare-skills.mjs && node scripts/build-pi-packages.mjs
 
       - name: Compute affected cone
@@ -101,6 +102,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Compose pinned skills
+        if: env.RUN_DEV == 'true'
         run: node scripts/prepare-skills.mjs && node scripts/build-pi-packages.mjs
 
       - name: Test workflow security pins
@@ -175,6 +177,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Compose pinned skills
+        if: env.RUN_ANY == 'true'
         run: node scripts/prepare-skills.mjs && node scripts/build-pi-packages.mjs
 
       - if: env.RUN_ANY == 'true'
@@ -259,6 +262,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Compose pinned skills
+        if: env.RUN_ACP == 'true'
         run: node scripts/prepare-skills.mjs && node scripts/build-pi-packages.mjs
 
       - if: env.RUN_DEV == 'true'
