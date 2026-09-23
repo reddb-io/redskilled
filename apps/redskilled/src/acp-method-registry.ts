@@ -210,7 +210,7 @@ export const REDSKILLS_ACP_METHOD_DOMAINS: readonly RedskillsAcpMethodDomainDecl
   {
     domain: "worktree",
     module: "apps/redskilled/src/acp-worktree.ts",
-    methods: ["worktreeAdd", "worktreeList"],
+    methods: ["worktreeAdd", "worktreeList", "worktreeSpace", "worktreeClean"],
     served: true,
   },
   {

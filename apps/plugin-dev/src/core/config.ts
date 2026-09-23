@@ -213,6 +213,7 @@ export const CONFIG_DEFAULTS = {
   // holder pid died or that outlived the TTL; `min_idle_s` is the idle floor a
   // clean/merged worktree must sit before the safe pruner may remove it.
   "afk.worktree_pool.enabled": "false",
+  "afk.worktrees.auto_clean": "false", // ADR 0172: boot removes no worktree unless `true`; humans clean from the UI.
   "afk.worktree_pool.max_size": "4",
   "afk.worktree_pool.lease_ttl_s": "3600",
   "afk.worktree_pool.min_idle_s": "1800",

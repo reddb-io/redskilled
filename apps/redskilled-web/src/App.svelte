@@ -3,6 +3,7 @@
   import { decode, encode, type JsonValue } from "@reddb-io/toon";
   import { AlertDialog, Badge, Button, Field, Input, Logo, Select, Textarea } from "@reddb-io/design-system/base";
   import { Activity, Bot, Boxes, Brain, Check, Copy, Download, FolderGit2, Gauge, Laptop, Menu, RefreshCw, ShieldCheck, Square, WifiOff, X } from "lucide-svelte";
+  import WorktreeSpace from "./WorktreeSpace.svelte";
 
   type View = "overview" | "projects" | "workers" | "worktrees" | "knowledge" | "devices";
   type RecordValue = Record<string, unknown>;
@@ -142,6 +143,20 @@
     } finally {
       action = "";
     }
+  }
+
+  /** A command whose failure the caller shows itself; it neither sets the shared action nor refreshes host state. */
+  async function query(operation: string, input: RecordValue): Promise<unknown> {
+    if (snapshot == null) throw new Error("This browser has not loaded the Host state yet.");
+    const response = await fetch("/api/v1/commands", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/toon", "x-redskilled-csrf": snapshot.csrf },
+      body: encode({ version: 1, command_id: crypto.randomUUID(), operation, input } as unknown as JsonValue),
+    });
+    const result = decode(await response.text()) as unknown as { ok?: boolean; error?: string; value?: unknown };
+    if (!response.ok || result.ok === false) throw new Error(result.error ?? `Command failed (${response.status})`);
+    return result.value;
   }
 
   async function listWorktrees(): Promise<void> {
@@ -324,6 +339,7 @@
                 <div class="table-cell actions" data-label="Actions">
                   <div class="action-group">
                     <Button size="sm" variant="secondary" loading={action === `drain:${project.project_label}`} onclick={() => void command("project_drain", { project_label: project.project_label }, `drain:${project.project_label}`)}>Drain</Button>
+                    <WorktreeSpace projectLabel={text(project.project_label, "")} run={query} />
                     <AlertDialog triggerLabel={`Stop ${text(project.project_label)}`} title={`Stop ${text(project.project_label)}?`} description="The daemon will stop scheduling this Project until it is started again." confirmLabel="Stop Project" onconfirm={() => void command("project_stop", { project_label: project.project_label }, `stop:${project.project_label}`)}>
                       {#snippet trigger()}Stop{/snippet}
                       <p>Running work can be interrupted. Confirm only if this Project should leave the active scheduling lane.</p>

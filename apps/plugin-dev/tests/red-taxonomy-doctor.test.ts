@@ -88,6 +88,7 @@ describe("auditRedTaxonomy — ADR 0098 lane registry", () => {
       entry(".red/tmp/scratch"),
       entry(".red/tmp/diagnostics"),
       entry(".red/researches"),
+      entry(".red/worktrees"),
     ]);
 
     expect(report.findings).toEqual([]);

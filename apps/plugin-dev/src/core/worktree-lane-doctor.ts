@@ -77,8 +77,13 @@ function relativeTo(root: string, path: string): string | null {
   return p.startsWith(`${r}/`) ? p.slice(r.length + 1) : null;
 }
 
+/** redcode's worktree lane (ADR 0172): redcode creates, lists and cleans these itself. */
+export const REDCODE_WORKTREE_LANE = ".red/worktrees";
+
 function laneIsRegistered(relative: string): boolean {
   const parts = relative.split("/");
+  // `.red/worktrees/<slug>` — owned by redcode, never by this repo's lanes.
+  if (parts[0] === ".red" && parts[1] === "worktrees") return parts[2] !== undefined;
   // `.red/tmp/worktrees/<lane>/…`
   if (parts[0] === ".red" && parts[1] === "tmp" && parts[2] === "worktrees") {
     return parts[3] !== undefined && REGISTERED_WORKTREE_LANES.includes(parts[3]);
@@ -118,10 +123,10 @@ export function auditWorktreeLanes(root: string, worktrees: readonly WorktreeFac
       verdict: "warn",
       reason:
         `${relative} is a git worktree of this repo outside every registered lane, left by ${origin(relative)}; ` +
-        "no janitor reclaims it and no doctor but this one reports it",
+        "nothing cleans it automatically and no doctor but this one reports it",
       canonicalFix:
-        "move the work into a registered lane (`.red/tmp/worktrees/<lane>/`) and remove the worktree, " +
-        "or extend ADR 0098 to register the lane it is in",
+        "move the work into a registered lane (`.red/tmp/worktrees/<lane>/`) and remove the worktree " +
+        "(the Project's Clean worktrees space action lists it), or extend ADR 0098 to register the lane it is in",
     });
   }
   return {

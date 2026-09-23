@@ -246,6 +246,14 @@ export interface BootFs {
   /** rm -rf an orphaned attempt dir. */
   removeDir(path: string): Promise<void>;
   /**
+   * Does this dir hold a git worktree of the Project (a `.git` FILE at its root
+   * or in its `worktree/` child)? Such a dir is never removed by boot unless the
+   * repository opted in with `afk.worktrees.auto_clean: true` (ADR 0172): the
+   * human removes it from the Project's "Clean worktrees space" action. Unwired
+   * means no dir is known to hold one.
+   */
+  holdsWorktree?(path: string): Promise<boolean>;
+  /**
    * The DAEMON's verdict on the Worker that owns a dir, re-read immediately
    * before removal (Spec #2772 US 46): a Worker may have been born since the
    * plan was built. Only `dead` releases bytes — `unknown`, an unwired probe, or
@@ -309,11 +317,9 @@ export interface BootGh {
 export interface BootGit {
   /** Delete an origin branch (git push origin --delete <branch>). */
   deleteRemoteBranch(branch: string): Promise<void>;
-  /** Delete a local branch (git branch -D <branch>). */
+  /** Delete a local branch (git branch -D <branch>). Boot never removes or
+   * prunes a worktree registration (ADR 0172). */
   deleteLocalBranch(branch: string): Promise<void>;
-  /** Drop git's registrations of worktrees whose bytes are gone (#2866).
-   * Optional: a caller that does not wire it simply leaves the registry alone. */
-  worktreePrune?(): Promise<void>;
 }
 
 /** Injected lookups the deciders need. Each mirrors a `gh issue view`/`gh issue
@@ -799,10 +805,14 @@ export interface OrphanCleanupResult {
   legacyWiped: string[];
   /** Stale `claims/<N>` lock dirs reclaimed this run. */
   claimsReleased: string[];
+  /** Dirs left in place because they hold a git worktree (ADR 0172). */
+  worktreesKept?: string[];
 }
 
 export interface AttemptCapResult {
   reclaimed: string[];
+  /** Dirs left in place because they hold a git worktree (ADR 0172). */
+  worktreesKept?: string[];
 }
 
 export interface BranchCleanupResult {
@@ -1188,15 +1198,20 @@ async function runOrphanCleanup(
   const kept: string[] = [];
   const legacyWiped: string[] = [];
   const claimsReleased: string[] = [];
+  const worktreesKept: string[] = [];
+  const release = async (path: string, done: string[]): Promise<void> => {
+    if (await keepsWorktree(deps, path)) worktreesKept.push(path);
+    else {
+      await deps.fs.removeDir(path);
+      done.push(path);
+    }
+  };
 
   // Drain-first cutover (#252): unconditionally wipe any leftover pre-cutover
   // flat `work-*` dir whose orchestrator the caller already found dead. This
   // mirrors the `rm -rf "$TMP_DIR"/work-*/` loop at the top of prune_orphans and
   // runs BEFORE the nested attempt-dir sweep, exactly as bash does.
-  for (const path of options.legacyWorkDirs ?? []) {
-    await deps.fs.removeDir(path);
-    legacyWiped.push(path);
-  }
+  for (const path of options.legacyWorkDirs ?? []) await release(path, legacyWiped);
 
   for (const dir of orphans) {
     const hasStateFile = dir.issue !== null;
@@ -1223,8 +1238,7 @@ async function runOrphanCleanup(
     });
 
     if (fate.kind === "remove") {
-      await deps.fs.removeDir(dir.path);
-      removed.push(dir.path);
+      await release(dir.path, removed);
     } else if (fate.kind === "restore-and-remove") {
       // A dead attempt dir naming issue N does not prove the ISSUE is orphaned
       // (#644): a claim-race loser leaves one behind while the winner is alive
@@ -1233,8 +1247,7 @@ async function runOrphanCleanup(
       // edit, no recovery comment.
       const ownedByLiveWorker = (await deps.lookups.claimHolderAlive?.(dir.issue!).catch(() => false)) ?? false;
       if (ownedByLiveWorker) {
-        await deps.fs.removeDir(dir.path);
-        removed.push(dir.path);
+        await release(dir.path, removed);
       } else {
         await applyBootStateTransition(deps, dir.issue!, { kind: "queue" }, [
           [LABEL_RUNNING],
@@ -1245,14 +1258,12 @@ async function runOrphanCleanup(
           "🤖 /afk orchestrator died mid-issue; restoring ready-for-agent.",
         );
         restored.push(dir.issue!);
-        await deps.fs.removeDir(dir.path);
-        removed.push(dir.path);
+        await release(dir.path, removed);
       }
     } else {
       // keep-until(ttlS): remove only once the dir has aged past the TTL.
       if (dir.ageS > fate.ttlS) {
-        await deps.fs.removeDir(dir.path);
-        removed.push(dir.path);
+        await release(dir.path, removed);
       } else {
         kept.push(dir.path);
       }
@@ -1286,13 +1297,31 @@ async function runOrphanCleanup(
 
   await deps.fs.reapDeadEmptyWorkerShells?.(options.bootstrap.tmpDir).catch(() => undefined);
 
-  return { removed, restored, kept, legacyWiped, claimsReleased };
+  return {
+    removed,
+    restored,
+    kept,
+    legacyWiped,
+    claimsReleased,
+    ...(worktreesKept.length === 0 ? {} : { worktreesKept }),
+  };
+}
+
+/** Boot leaves a worktree-holding dir alone unless the repository opted in
+ * with `afk.worktrees.auto_clean: true` (ADR 0172). A throwing probe keeps the
+ * dir: an unanswered question never authorises deleting someone's worktree. */
+async function keepsWorktree(deps: BootDeps, path: string): Promise<boolean> {
+  if (deps.config?.["afk.worktrees.auto_clean"] === "true" || deps.fs.holdsWorktree == null) return false;
+  const holds = await deps.fs.holdsWorktree(path).catch(() => true);
+  if (holds) deps.log?.(`boot kept ${path}: it holds a git worktree; remove it from Clean worktrees space`);
+  return holds;
 }
 
 /** Step 4: planAttemptCap per issue with fixed legacy cleanup caps, then rm
  * -rf each reclaimed dir. */
 async function runAttemptCap(deps: BootDeps, input: AttemptCapInput): Promise<AttemptCapResult> {
   const reclaimed: string[] = [];
+  const worktreesKept: string[] = [];
 
   for (const [, attempts] of input.byIssue) {
     const reaped = planAttemptCap(attempts, {
@@ -1301,12 +1330,16 @@ async function runAttemptCap(deps: BootDeps, input: AttemptCapInput): Promise<At
       nowS: deps.nowS,
     });
     for (const dir of reaped) {
+      if (await keepsWorktree(deps, dir.path)) {
+        worktreesKept.push(dir.path);
+        continue;
+      }
       await deps.fs.removeDir(dir.path);
       reclaimed.push(dir.path);
     }
   }
 
-  return { reclaimed };
+  return worktreesKept.length === 0 ? { reclaimed } : { reclaimed, worktreesKept };
 }
 
 /** Step 5: the three branch-cleanup planners, deleting only the reaped refs.

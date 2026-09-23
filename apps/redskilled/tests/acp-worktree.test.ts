@@ -220,13 +220,15 @@ describe("the worktree porcelain reader", () => {
 });
 
 describe("the worktree method domain", () => {
-  it("binds both methods and advertises them with the lane they land in", () => {
+  it("binds every worktree method and advertises them with the lane they land in", () => {
     const domain = worktreeMethodDomain(deps(registered(), stubGit().run));
 
     expect(domain.domain).toBe("worktree");
     expect(domain.bindings.map((binding) => binding.method)).toEqual([
       REDSKILLS_ACP_METHODS.worktreeAdd,
       REDSKILLS_ACP_METHODS.worktreeList,
+      REDSKILLS_ACP_METHODS.worktreeSpace,
+      REDSKILLS_ACP_METHODS.worktreeClean,
     ]);
     expect(domain.capability).toMatchObject({
       worktree: { lane: REDSKILLED_INTERACTIVE_WORKTREE_LANE },

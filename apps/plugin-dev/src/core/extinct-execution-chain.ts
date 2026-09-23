@@ -19,7 +19,8 @@
 //     name in a doc, and one is the container lane whose Worker body moves in
 //     its own slice.
 //
-// What is still owed is the janitor, the client-checkout reclaim it planned
+// The janitor's last two locations cleared with ADR 0172 (boot now only reports
+// worktrees). What is still owed is the client-checkout reclaim it planned
 // with, and the vendored `red-castle` vocabulary.
 //
 // Declaring the inventory BEFORE the deletion is what makes the deletion a
@@ -223,14 +224,6 @@ export const EXECUTION_CHAIN_BASELINE: readonly ExtinctSourceBaselineEntry[] = [
       // a subcommand after it fails. Deleting the literal would delete the
       // refusal.
       "apps/plugin-dev/src/core/bare-invocation-guard.ts": 1,
-    },
-  ),
-  ...crossing(
-    "tmp-janitor",
-    "the janitor still sweeps a human's checkout; it clears when Worker workspaces move to OS temporary storage and the module is deleted",
-    {
-      "apps/plugin-dev/src/core/worktree-lane-doctor.ts": 1,
-      "apps/plugin-dev/src/runtime/wire/boot.ts": 2,
     },
   ),
   ...crossing(

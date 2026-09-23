@@ -92,11 +92,14 @@ function parseWorktreePorcelain(output: string): PorcelainWorktree[] {
 }
 
 /**
- * Remove linked worktrees that can poison every repository-level git command.
+ * Find linked worktrees that can poison every repository-level git command.
  * Git leaves an `initializing` lock while `worktree add` is in flight; a killed
  * creator can strand that lock with a HEAD whose object was later collected.
- * `git worktree remove --force` refuses locked entries, so quarantine first
- * unlocks, then force-removes, and finally prunes the shared registry.
+ *
+ * REPORT-ONLY by default (ADR 0172): worktree lifecycle belongs to redcode, and
+ * a human removes a broken worktree from the Project's "Clean worktrees space"
+ * action. Only `remove: true` — the opt-in `afk.worktrees.auto_clean` — unlocks,
+ * force-removes and prunes the shared registry.
  *
  * The first porcelain entry is the primary checkout and is never eligible.
  * Healthy linked worktrees, including deliberately locked ones whose reason is
@@ -104,6 +107,7 @@ function parseWorktreePorcelain(output: string): PorcelainWorktree[] {
  */
 export async function quarantineBrokenWorktrees(
   ctx: GitContext,
+  options: { readonly remove?: boolean } = {},
 ): Promise<BrokenWorktreeQuarantine[]> {
   const listed = await runGit(ctx, ["worktree", "list", "--porcelain"]);
   if (listed.code !== 0) return [];
@@ -121,6 +125,10 @@ export async function quarantineBrokenWorktrees(
     const reasons = [initializing ? "initializing-lock" : "", !headExists ? "dangling-head" : ""]
       .filter(Boolean)
       .join(",");
+    if (options.remove !== true) {
+      quarantined.push({ path: worktree.path, reason: reasons, removed: false });
+      continue;
+    }
     await runGit(ctx, ["worktree", "unlock", worktree.path]);
     const removed = await runGit(ctx, ["worktree", "remove", "--force", worktree.path]);
     quarantined.push({
@@ -133,7 +141,7 @@ export async function quarantineBrokenWorktrees(
     });
   }
 
-  if (quarantined.length > 0) await runGit(ctx, ["worktree", "prune"]);
+  if (quarantined.some((worktree) => worktree.removed)) await runGit(ctx, ["worktree", "prune"]);
   return quarantined;
 }
 
@@ -795,15 +803,6 @@ export function warnWorktreeAdd(dest: string, branch: string, stderr: string): v
 export async function worktreeRemove(ctx: GitContext, path: string): Promise<void> {
   if (!path) return;
   await runGit(ctx, ["worktree", "remove", "--force", path]);
-}
-
-/**
- * Drop stale registrations after orphaned dirs disappear. The one-hour expiry
- * guards a sibling Worker whose `worktree add` is still materialising; failures
- * remain best-effort so janitor sweeps never abort.
- */
-export async function worktreePrune(ctx: GitContext): Promise<void> {
-  await runGit(ctx, ["worktree", "prune", "--expire=1.hour.ago"]);
 }
 
 /** The GitExec executor for remote-branch.ts live-branch push/delete helpers. */

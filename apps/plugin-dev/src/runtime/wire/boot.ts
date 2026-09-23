@@ -163,22 +163,27 @@ export async function collectClaimHygieneIssues(
 }
 
 /**
- * Boot-only precheck collector. The worktree quarantine must run before any
- * fetch-backed operational probe: a single initializing worktree with a
- * dangling HEAD can otherwise make the probe itself fail on every boot.
+ * Boot-only precheck collector. Broken worktrees are reported before any
+ * fetch-backed operational probe, because a single initializing worktree with a
+ * dangling HEAD can make the probe itself fail on every boot — and the line
+ * naming it is the operator's repair. Boot removes nothing (ADR 0172) unless the
+ * repository opted in with `afk.worktrees.auto_clean: true`.
  * Read-only callers such as red-doctor continue to use collectPrecheckFacts.
  */
 export async function collectBootPrecheckFacts(
   ctx: RepoContext,
   options: CollectBootPrecheckFactsOptions = {},
 ): Promise<PrecheckFacts> {
-  const quarantined = await gitx.quarantineBrokenWorktrees({ cwd: ctx.root });
-  for (const worktree of quarantined) {
+  const remove = getConfig(loadConfig(afkPaths(ctx.root).configPath), "afk.worktrees.auto_clean") === "true";
+  for (const worktree of await gitx.quarantineBrokenWorktrees({ cwd: ctx.root }, { remove })) {
     if (worktree.removed) {
-      options.log?.(`boot janitor quarantined worktree path=${worktree.path} reason=${worktree.reason}`);
+      options.log?.(`boot removed broken worktree path=${worktree.path} reason=${worktree.reason} (afk.worktrees.auto_clean)`);
+    } else if (worktree.error !== undefined) {
+      options.log?.(`boot failed to remove broken worktree path=${worktree.path} reason=${worktree.reason}: ${worktree.error}`);
     } else {
       options.log?.(
-        `boot janitor failed to quarantine worktree path=${worktree.path} reason=${worktree.reason}: ${worktree.error ?? "unknown git error"}`,
+        `boot found broken worktree path=${worktree.path} reason=${worktree.reason}; left in place — ` +
+          "remove it with the Project's Clean worktrees space action or `git worktree remove --force`",
       );
     }
   }
@@ -512,6 +517,7 @@ export async function buildBootDeps(
       ensureDir: fsx.ensureDir,
       writeWorkerPid: fsx.writeWorkerPid,
       removeDir: fsx.removeDir,
+      holdsWorktree: fsx.holdsWorktree,
       // The state record carries no workspace path, so its Worker is named
       // directly — the same daemon, asked the same question (#2978).
       workerStateRecordLivenessVerdict: async (workerId) =>
@@ -547,7 +553,6 @@ export async function buildBootDeps(
       deleteLocalBranch: async (branch) => {
         await gitx.deleteLocalBranch(gitCtx, branch);
       },
-      worktreePrune: () => gitx.worktreePrune(gitCtx),
     },
     log,
     fastForwardLocalBase: ({ remote, target }) =>
