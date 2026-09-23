@@ -77,6 +77,33 @@ Structured state such as `~/.red/redskilled/redskilled.log.toonl`, death records
 and Worker logs keeps its existing format, paths and retention rules. Those
 files are not interchangeable with the disposable diagnostic log.
 
+## Worktree cleanup
+
+redcode owns worktree lifecycle and creates worktrees at `<repo>/.red/worktrees/<slug>`.
+Redskilled does not remove a Project's worktrees on its own (ADR 0172): boot only
+reports a broken worktree and keeps any attempt directory that holds one.
+
+To reclaim disk, open the web dashboard's **Projects** view and choose **Clean
+worktrees space**. The button shows the total size of the Project's linked
+worktrees. The confirmation list groups them as merged or clean, stale, dirty and
+in use. Dirty worktrees start unselected and each needs its own discard
+confirmation. In-use worktrees (a running Worker or process, or a git lock) and
+the primary checkout are never removed. Branches are kept.
+
+Unattended removal is off by default. A repository that explicitly wants the old
+behaviour can set it in `.red/config.yaml`:
+
+```yaml
+plugins:
+  dev:
+    afk:
+      worktrees:
+        auto_clean: true # default false
+```
+
+Machines still running the 2.x castle MCP keep its five-minute sweep until the
+synced dev plugin is updated to a current release.
+
 ## Plugin content
 
 - [Dev](https://github.com/reddb-io/red-skills/tree/main/plugins/dev/)

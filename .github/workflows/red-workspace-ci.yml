@@ -426,6 +426,15 @@ jobs:
         if: env.RUN_ACP == 'true'
         run: pnpm -C apps/redskilled exec vitest run tests/diagnostic-log.test.ts tests/system-tray.test.ts tests/help-offline.test.ts
 
+      # ADR 0172: the only path on which Redskilled removes a Project worktree
+      # is the human-confirmed "Clean worktrees space" action. Its safety rules
+      # (dirty needs per-path force; in-use and the primary checkout are never
+      # removed) are proven against real git repositories. Linux only: the
+      # fixtures compare POSIX paths and exercise the `/proc` in-use scan.
+      - name: Test the worktree space inventory and user-triggered clean
+        if: env.RUN_ACP == 'true' && runner.os == 'Linux'
+        run: pnpm -C apps/redskilled exec vitest run tests/worktree-space.test.ts tests/acp-worktree.test.ts
+
       # The broad `apps/redskilled` gate is deliberately absent from this
       # workflow (#3878), so the five supported Agents need a focused suite of
       # their own: without it, a sixth Agent, a dropped Agent, or one admitted

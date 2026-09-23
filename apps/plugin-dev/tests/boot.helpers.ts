@@ -78,7 +78,6 @@ export function makeDeps(over: Partial<{
   const gitCalls = {
     deleteRemote: [] as string[],
     deleteLocal: [] as string[],
-    worktreePrune: 0,
   };
 
   const deps: BootDeps = {
@@ -148,10 +147,6 @@ export function makeDeps(over: Partial<{
       async deleteLocalBranch(branch) {
         calls.push(`git.deleteLocal:${branch}`);
         gitCalls.deleteLocal.push(branch);
-      },
-      async worktreePrune() {
-        calls.push("git.worktreePrune");
-        gitCalls.worktreePrune += 1;
       },
     },
     ...(over.log ? { log: over.log } : {}),

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readdir, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -43,12 +43,28 @@ async function poisonWorktree(repo: string): Promise<void> {
   await writeFile(join(entry, "HEAD"), `${"0".repeat(40)}\n`, "utf8");
 }
 
-describe("boot worktree quarantine", () => {
-  it("quarantines an initializing locked worktree with a dangling HEAD before git probes", async () => {
+describe("boot broken-worktree report (ADR 0172)", () => {
+  it("reports an initializing locked worktree with a dangling HEAD and leaves it in place", async () => {
     const { repo, worktree } = await setupRepo();
     await poisonWorktree(repo);
 
     const result = await quarantineBrokenWorktrees({ cwd: repo });
+
+    expect(result).toEqual([
+      {
+        path: worktree,
+        reason: "initializing-lock,dangling-head",
+        removed: false,
+      },
+    ]);
+    expect(await git(repo, ["worktree", "list", "--porcelain"])).toContain(worktree);
+  });
+
+  it("removes it only when the caller opts in", async () => {
+    const { repo, worktree } = await setupRepo();
+    await poisonWorktree(repo);
+
+    const result = await quarantineBrokenWorktrees({ cwd: repo }, { remove: true });
 
     expect(result).toEqual([
       {
@@ -61,9 +77,32 @@ describe("boot worktree quarantine", () => {
     await expect(git(repo, ["fetch", "origin", "main"])).resolves.toBe("");
   });
 
-  it("runs quarantine before collecting operational probe facts", async () => {
+  it("boot names the broken worktree and removes nothing by default", async () => {
     const { repo, worktree } = await setupRepo();
     await poisonWorktree(repo);
+    const log: string[] = [];
+
+    await collectBootPrecheckFacts(
+      { root: repo, repo: "", remote: "origin" },
+      { log: (line) => log.push(line) },
+    );
+
+    expect(await git(repo, ["worktree", "list", "--porcelain"])).toContain(worktree);
+    expect(log).toEqual([
+      `boot found broken worktree path=${worktree} reason=initializing-lock,dangling-head; left in place — ` +
+        "remove it with the Project's Clean worktrees space action or `git worktree remove --force`",
+    ]);
+  });
+
+  it("boot removes it before the probes when afk.worktrees.auto_clean is true", async () => {
+    const { repo, worktree } = await setupRepo();
+    await poisonWorktree(repo);
+    await mkdir(join(repo, ".red"), { recursive: true });
+    await writeFile(
+      join(repo, ".red", "config.yaml"),
+      "plugins:\n  dev:\n    enabled: true\n    afk:\n      worktrees:\n        auto_clean: true\n",
+      "utf8",
+    );
     const log: string[] = [];
 
     const facts = await collectBootPrecheckFacts(
@@ -75,7 +114,7 @@ describe("boot worktree quarantine", () => {
     expect(probes.findings.map((finding) => finding.id)).not.toContain("afk.base-freshness");
     expect(await git(repo, ["worktree", "list", "--porcelain"])).not.toContain(worktree);
     expect(log).toEqual([
-      `boot janitor quarantined worktree path=${worktree} reason=initializing-lock,dangling-head`,
+      `boot removed broken worktree path=${worktree} reason=initializing-lock,dangling-head (afk.worktrees.auto_clean)`,
     ]);
   });
 });

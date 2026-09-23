@@ -6,6 +6,7 @@ import {
 import {
   auditWorktreeLanes,
   parseWorktreePorcelain,
+  REDCODE_WORKTREE_LANE,
   REGISTERED_WORKTREE_LANES,
 } from "../src/core/worktree-lane-doctor.js";
 
@@ -37,7 +38,13 @@ describe("auditWorktreeLanes — every worktree lives in a lane we own", () => {
     expect(report.findings).toHaveLength(1);
     expect(report.findings[0]?.path).toBe(".muse/worktrees/red-skills-63dcb17d");
     expect(report.findings[0]?.reason).toContain("Muse `--worktree` run");
-    expect(report.findings[0]?.reason).toContain("no janitor reclaims it");
+    expect(report.findings[0]?.reason).toContain("nothing cleans it automatically");
+  });
+
+  it("passes redcode's own lane, which redcode lists and cleans itself (ADR 0172)", () => {
+    const report = auditWorktreeLanes(ROOT, [{ path: `/repo/${REDCODE_WORKTREE_LANE}/fix-scroll-state` }]);
+    expect(report.verdict).toBe("ok");
+    expect(auditWorktreeLanes(ROOT, [{ path: `/repo/${REDCODE_WORKTREE_LANE}` }]).verdict).toBe("warn");
   });
 
   it("still reports a host it does not recognise, rather than passing it", () => {

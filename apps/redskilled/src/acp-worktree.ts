@@ -19,12 +19,16 @@ import {
   WORKTREE_SCHEMA,
   emptyRedskillsParams,
   worktreeAddParams,
+  worktreeCleanParams,
   worktreeRefusal,
   type WorktreeAddAnswer,
+  type WorktreeCleanAnswer,
+  type WorktreeCleanParams,
   type WorktreeAddParams,
   type WorktreeEntry,
   type WorktreeKind,
   type WorktreeListAnswer,
+  type WorktreeSpaceAnswer,
 } from "@reddb-io/protocol-acp";
 
 import {
@@ -33,6 +37,7 @@ import {
   type RedskillsAcpMethodDomain,
 } from "./acp-method-registry.js";
 import type { RedskilledTrunk } from "./project-registration.js";
+import { cleanWorktreeSpace, inventoryWorktreeSpace, type WorktreeSpaceDeps } from "./worktree-space.js";
 
 const GIT_TIMEOUT_MS = 30_000;
 
@@ -90,6 +95,8 @@ export interface AcpWorktreeDeps {
   readonly workerWorktrees: () => readonly RedskilledWorkerWorktree[];
   /** Run git in a directory. Injected so the domain is testable without a repo. */
   readonly git?: (cwd: string, args: readonly string[]) => Promise<string>;
+  /** Seams for `worktree_space` / `worktree_clean`; production uses real git and `/proc`. */
+  readonly space?: Omit<WorktreeSpaceDeps, "checkout" | "workerWorktrees">;
 }
 
 /** The registered checkout, or the typed refusal that names the repair. */
@@ -172,6 +179,30 @@ export function bindAcpWorktreeList(deps: AcpWorktreeDeps) {
       worktrees: [...checkoutWorktrees, ...workerWorktrees],
     };
   };
+}
+
+/**
+ * How much disk the Project's linked worktrees hold, each with the group the
+ * confirmation list shows it in (ADR 0172). Read-only.
+ */
+export function bindAcpWorktreeSpace(deps: AcpWorktreeDeps) {
+  return async (): Promise<WorktreeSpaceAnswer> => await inventoryWorktreeSpace(spaceDeps(deps));
+}
+
+/**
+ * Remove the worktrees the human selected and confirmed (ADR 0172).
+ *
+ * The ONLY path on which RedSkilled removes a Project worktree. The selection
+ * is re-judged against a fresh inventory, so a worktree that became dirty or
+ * busy since the human looked is skipped rather than removed.
+ */
+export function bindAcpWorktreeClean(deps: AcpWorktreeDeps) {
+  return async (context: RedskillsAcpMethodContext<WorktreeCleanParams>): Promise<WorktreeCleanAnswer> =>
+    await cleanWorktreeSpace(spaceDeps(deps), context.params);
+}
+
+function spaceDeps(deps: AcpWorktreeDeps): WorktreeSpaceDeps {
+  return { ...deps.space, checkout: requireRegisteredCheckout(deps), workerWorktrees: deps.workerWorktrees() };
 }
 
 /** One `git worktree list --porcelain` record, as git states it. */
@@ -285,11 +316,22 @@ export function worktreeMethodDomain(deps: AcpWorktreeDeps): RedskillsAcpMethodD
         emptyRedskillsParams("worktree_list names no checkout, Project or lane; the connection's registration decides"),
         bindAcpWorktreeList(deps),
       ),
+      redskillsAcpMethod(
+        REDSKILLS_ACP_METHODS.worktreeSpace,
+        emptyRedskillsParams("worktree_space names no checkout or path; the connection's registration decides"),
+        bindAcpWorktreeSpace(deps),
+      ),
+      redskillsAcpMethod(REDSKILLS_ACP_METHODS.worktreeClean, worktreeCleanParams, bindAcpWorktreeClean(deps)),
     ],
     capability: {
       worktree: {
         version: WORKTREE_SCHEMA.version,
-        methods: [REDSKILLS_ACP_METHODS.worktreeAdd, REDSKILLS_ACP_METHODS.worktreeList],
+        methods: [
+          REDSKILLS_ACP_METHODS.worktreeAdd,
+          REDSKILLS_ACP_METHODS.worktreeList,
+          REDSKILLS_ACP_METHODS.worktreeSpace,
+          REDSKILLS_ACP_METHODS.worktreeClean,
+        ],
         lane: REDSKILLED_INTERACTIVE_WORKTREE_LANE,
       },
     },

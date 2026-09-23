@@ -650,8 +650,9 @@ describe("the execution-chain crossing is declared at today's counts (#4009)", (
     // 72 of them and #4031's demolition of the CLI, the run body, the supervisor
     // and the launch template paid 38 more. A slice that needs the ceiling RAISED
     // is adding a location, which is the reintroduction the entry-level counts
-    // already refuse. Lower this number when a slice clears more.
-    expect(EXECUTION_CHAIN_BASELINE.length).toBeLessThanOrEqual(47);
+    // already refuse. Lower this number when a slice clears more. ADR 0172 paid
+    // the last two `tmp-janitor` locations: boot now only reports worktrees.
+    expect(EXECUTION_CHAIN_BASELINE.length).toBeLessThanOrEqual(45);
   });
 
   it("fails when ANY declared location gains one reference (the ratchet itself)", () => {

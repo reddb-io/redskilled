@@ -62,6 +62,25 @@ export async function removeDir(path: string): Promise<void> {
   await rm(path, { recursive: true, force: true });
 }
 
+/**
+ * Does `path` hold a linked git worktree? Its root carries a `.git` FILE (a
+ * clone carries a directory), directly, in the attempt layout's `worktree/`
+ * child, or one level further down for a Worker dir holding attempts. Boot
+ * keeps such a dir for the human to clean (ADR 0172).
+ */
+export async function holdsWorktree(path: string): Promise<boolean> {
+  const children = await readdir(path, { withFileTypes: true }).catch(() => []);
+  const candidates = [
+    join(path, ".git"),
+    join(path, "worktree", ".git"),
+    ...children.filter((entry) => entry.isDirectory()).map((entry) => join(path, entry.name, "worktree", ".git")),
+  ];
+  for (const candidate of candidates) {
+    if ((await stat(candidate).catch(() => undefined))?.isFile()) return true;
+  }
+  return false;
+}
+
 function normalizedParts(path: string): string[] {
   return normalize(path).split(sep).filter(Boolean);
 }

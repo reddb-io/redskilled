@@ -36,6 +36,10 @@ const COMMANDS = {
   go_dispatch: REDSKILLS_ACP_METHODS.goDispatch,
   worktree_add: REDSKILLS_ACP_METHODS.worktreeAdd,
   worktree_list: REDSKILLS_ACP_METHODS.worktreeList,
+  // ADR 0172: the "Clean worktrees space" action. Paths are matched against
+  // git's own inventory by the daemon, never taken as filesystem targets.
+  worktree_space: REDSKILLS_ACP_METHODS.worktreeSpace,
+  worktree_clean: REDSKILLS_ACP_METHODS.worktreeClean,
   metrics: REDSKILLS_ACP_METHODS.metrics,
   brain_call: REDSKILLS_ACP_METHODS.brainCall,
   memory_call: REDSKILLS_ACP_METHODS.memoryCall,

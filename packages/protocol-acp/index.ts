@@ -19,3 +19,4 @@ export * from "./session-recovery.js";
 export * from "./ticket.js";
 export * from "./transport.js";
 export * from "./worktree.js";
+export * from "./worktree-space.js";

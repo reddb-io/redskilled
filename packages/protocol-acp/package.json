@@ -18,7 +18,8 @@
     "./mobile-operator.js": "./mobile-operator.ts",
     "./session-recovery.js": "./session-recovery.ts",
     "./transport.js": "./transport.ts",
-    "./worktree.js": "./worktree.ts"
+    "./worktree.js": "./worktree.ts",
+    "./worktree-space.js": "./worktree-space.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"

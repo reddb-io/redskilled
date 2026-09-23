@@ -41,6 +41,9 @@ const DOCUMENTED_RED_ROOTS = new Set([
   "state",
   "tmp",
   "researches",
+  // redcode's worktree lane, `.red/worktrees/<slug>` — redcode creates, lists
+  // and cleans it; RedSkilled only reports its size on request (ADR 0172).
+  "worktrees",
 ]);
 
 const KNOWN_TMP_LANES = new Set([

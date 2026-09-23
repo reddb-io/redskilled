@@ -46,6 +46,7 @@ it encodes what an authority permits.
 | `methods.ts` | The `_redskills/*` registry and the params shape shared by the methods that take none. |
 | `go-dispatch.ts` | The `go_dispatch` params, answer, published schema and params validator. |
 | `worktree.ts` | The `worktree_add` / `worktree_list` params, answers, published schemas, params validator and refusal vocabulary. |
+| `worktree-space.ts` | The `worktree_space` / `worktree_clean` answers, the clean selection params and validator, and the skip vocabulary (ADR 0172). |
 
 ## Ownership guard
 

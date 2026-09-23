@@ -42,6 +42,8 @@ export const REDSKILLS_ACP_METHODS = {
   workerStop: "_redskills/worker_stop",
   worktreeAdd: "_redskills/worktree_add",
   worktreeList: "_redskills/worktree_list",
+  worktreeSpace: "_redskills/worktree_space",
+  worktreeClean: "_redskills/worktree_clean",
   metrics: "_redskills/metrics",
   brainCall: "_redskills/brain_call",
   memoryCall: "_redskills/memory_call",
