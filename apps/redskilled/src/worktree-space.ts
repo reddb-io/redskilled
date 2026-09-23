@@ -292,7 +292,6 @@ export function originOf(checkoutRoot: string, path: string): { creator: Worktre
   if (parts[0] === ".red" && parts[1] === "tmp" && ["workers", "go-workers", "scout-workers"].includes(parts[2] ?? "")) {
     return { creator: "redskilled-worker", lane: parts[2] };
   }
-  if (parts[0] === ".red-castle") return { creator: "redskilled-worker", lane: ".red-castle" };
   const host = [".claude/worktrees", ".codex/worktrees", ".muse/worktrees"]
     .find((prefix) => relative === prefix || relative.startsWith(`${prefix}/`));
   return host === undefined ? { creator: "other" } : { creator: "other", lane: host };
