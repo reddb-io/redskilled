@@ -17,9 +17,8 @@ import {
   type McpServer,
   type PromptRequest,
   type PromptResponse,
-  type RequestPermissionResponse,
-  type SessionNotification,
 } from "@agentclientprotocol/sdk";
+import { runV2PublicTurn } from "./acp-v2-public-turn.js";
 import { formatStandingOrdersBrief } from "./standing-orders.js";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2";
 import {
@@ -35,7 +34,6 @@ import {
   requireCompatibleWireMajor,
   requireSupportedV2Revision,
   socketStream,
-  translateV1SessionUpdateToV2,
 } from "@reddb-io/protocol-acp";
 import { bindAcpGithubReaderUpdates, bindAcpProjectGithubCustodyStatus, type AcpGithubUpdateObserver } from "./acp-github.js";
 import { connectionMethodTables } from "./acp-connection-methods.js";
@@ -78,12 +76,8 @@ import {
 } from "./acp-dispatch-intent.js";
 import {
   cleanupWorkflowWorker,
-  notifyWorkerLifecycle,
   notifySessionLifecycle,
   reapWorkflowWorker,
-  requestWorkflowTurn,
-  scheduleIdleCleanup,
-  workflowOutcome,
   type ActiveWorkflowWorker,
 } from "./acp-worker-lifecycle.js";
 import { admitNativeAcpWorker } from "./acp-worker-admission.js";
@@ -665,102 +659,6 @@ async function servePublicConnection(
  */
 const DETACHED_TURN_GRACE_MS = 120_000;
 
-async function runV2PublicTurn(
-  options: StartRedskillsAcpControlPlaneOptions,
-  sessionJournal: DurableAcpSessionJournal,
-  sessions: Map<string, PublicSession>,
-  active: Map<string, ActiveWorkflowWorker>,
-  params: acpV2.PromptRequest,
-  upstream: acpV2.AgentContext,
-  attached: () => boolean,
-): Promise<void> {
-  const session = sessions.get(params.sessionId);
-  if (session == null) return;
-  const messageId = randomUUID();
-  await upstream.notify(acpV2.methods.client.session.update, {
-    sessionId: params.sessionId,
-    update: { sessionUpdate: "state_update", state: "running" },
-  });
-
-  let worker: ActiveWorkflowWorker | undefined;
-  try {
-    const forward = async (_method: typeof methods.client.session.update, notice: SessionNotification) => {
-      const update = translateV1SessionUpdateToV2(notice.update, messageId);
-      if (update == null) return;
-      await upstream.notify(acpV2.methods.client.session.update, {
-        sessionId: params.sessionId,
-        update,
-        _meta: notice._meta,
-      });
-    };
-    // Inject standing orders into the prompt if present
-    let prompt = params.prompt as unknown as PromptRequest["prompt"];
-    if (options.standingOrdersStore != null) {
-      const ordersResult = await options.standingOrdersStore.show(session.project.projectLabel);
-      if (ordersResult.orders.length > 0) {
-        const ordersText = formatStandingOrdersBrief(ordersResult.orders);
-        prompt = [{ type: "text", text: ordersText }, ...prompt];
-      }
-    }
-    const turn = await requestWorkflowTurn(
-      params.sessionId,
-      active,
-      {
-        sessionId: params.sessionId,
-        prompt,
-        ...(params._meta == null ? {} : { _meta: params._meta }),
-      },
-      (replacement) => admitNativeAcpWorker(
-        options,
-        sessionJournal,
-        session,
-        params.sessionId,
-        forward,
-        (request) => resolvePermission(
-          sessionJournal,
-          params.sessionId,
-          request,
-          attached,
-          async (projected) => await upstream.request(
-            acpV2.methods.client.session.requestPermission,
-            projected as unknown as acpV2.RequestPermissionRequest,
-          ) as unknown as RequestPermissionResponse,
-        ),
-        replacement,
-      ),
-    );
-    worker = turn.worker;
-    const response = turn.response;
-    const outcome = workflowOutcome(response);
-    await sessionJournal.checkpoint(params.sessionId, response, outcome);
-    if (outcome != null) {
-      await notifyWorkerLifecycle(worker, "terminal-outcome", outcome).catch(() => undefined);
-      await reapWorkflowWorker(params.sessionId, worker, active, outcome);
-    } else if (!attached()) {
-      await reapWorkflowWorker(params.sessionId, worker, active, "client-detached");
-    } else {
-      scheduleIdleCleanup(params.sessionId, worker, active);
-    }
-    await upstream.notify(acpV2.methods.client.session.update, {
-      sessionId: params.sessionId,
-      update: { sessionUpdate: "state_update", state: "idle", stopReason: response.stopReason },
-      _meta: { redskills: { authority: "redskilled", workerId: worker.workerId } },
-    });
-  } catch (error) {
-    if (worker != null) cleanupWorkflowWorker(params.sessionId, worker, active);
-    const detail = error instanceof Error ? error.message : String(error);
-    options.recordAcpFailure?.({
-      projectLabel: session.project.projectLabel,
-      detail: `an ACP v2 turn ended as a refusal: ${detail}`,
-      surface: "turn",
-    });
-    await upstream.notify(acpV2.methods.client.session.update, {
-      sessionId: params.sessionId,
-      update: { sessionUpdate: "state_update", state: "idle", stopReason: "refusal" },
-      _meta: { redskills: { authority: "redskilled", detail } },
-    });
-  }
-}
 
 function projectState(host: RedskilledHostState, project: AcpProjectWorkspace) {
   return {
