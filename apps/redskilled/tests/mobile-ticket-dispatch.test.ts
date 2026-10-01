@@ -22,7 +22,7 @@ function harness(options: { labels?: string[]; competingClaim?: boolean } = {}) 
       if (request.path.endsWith("/issues/42")) {
         return answer({ state: "open", title: "Ship the circuit", labels: options.labels ?? ["type:feature"] });
       }
-      if (request.path.endsWith("/issues/42/comments?per_page=100")) return answer([...comments]);
+      if (request.path.endsWith("/issues/42/comments?per_page=100&page=1")) return answer([...comments]);
       throw new Error(`unexpected read ${request.path}`);
     },
     async write(request: { write: { body: string } }) {

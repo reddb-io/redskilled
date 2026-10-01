@@ -232,6 +232,17 @@ export function mintHostWorkerId(
   return workerId;
 }
 
+let lastReservedWorkerEpoch = -1;
+
+/** Reserve before asynchronous preparation, when the live set cannot see birth yet. */
+export function reserveHostWorkerId(liveWorkerIds: Iterable<string>): string {
+  const workerId = mintHostWorkerId(liveWorkerIds, () => Math.max(Date.now(), lastReservedWorkerEpoch + 1));
+  lastReservedWorkerEpoch = [...workerId].reduce(
+    (epoch, character) => epoch * HOST_WORKER_ID_ALPHABET.length + HOST_WORKER_ID_ALPHABET.indexOf(character), 0,
+  );
+  return workerId;
+}
+
 /** What preparing a Worker's log actually did, and what to say when it failed. */
 interface WorkerLogPreparation {
   /** Whether the daemon may pipe this Worker's output into the file. */
@@ -347,7 +358,7 @@ export function launchWorker(options: LaunchWorkerOptions): LaunchedWorker {
   const declaredWorkerEnv = credentialFreeEnv(spec.env ?? {});
   const clock = options.clock ?? (() => new Date().toISOString());
   const workerId = (spec.worker_id ?? options.workerId)?.trim()
-    || mintHostWorkerId(options.liveWorkerIds ?? []);
+    || reserveHostWorkerId(options.liveWorkerIds ?? []);
   const bornAt = clock();
   const probes = options.probes ?? detectWorkerPlacementProbes(env);
   // Resolved HERE, at the instant this Worker exists, and never earlier (#3440).

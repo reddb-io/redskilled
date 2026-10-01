@@ -91,17 +91,19 @@ describe("land entry points are enumerated, not discovered (#4138)", () => {
       "worker-land-request",
       "acp-custody-handoff-method",
       "acp-land-method",
+      "github-merge-custodian",
     ]);
   });
 
-  it("pins the ONE entrance that asks nothing, and what closing it would take", () => {
-    const unenforced = LAND_ENTRY_POINTS.filter((entry) => entry.enforcement === "unenforced");
-    expect(unenforced.map((entry) => entry.id)).toEqual(["acp-custody-handoff-method"]);
-    expect(unenforced[0]?.gap).toContain("armed_head");
+  it("keeps every live entrance behind a Countersign owner", () => {
+    expect(LAND_ENTRY_POINTS.filter((entry) => entry.enforcement === "unenforced")).toEqual([]);
+    for (const id of ["acp-custody-handoff-method", "acp-land-method"]) {
+      expect(LAND_ENTRY_POINTS.find((entry) => entry.id === id)?.delegatesTo).toBe("github-merge-custodian");
+    }
   });
 
   it("refuses an unenforced entrance that states no gap", () => {
-    const unenforced = LAND_ENTRY_POINTS.find((entry) => entry.enforcement === "unenforced")!;
+    const unenforced = { ...LAND_ENTRY_POINTS[0]!, enforcement: "unenforced" as const, gap: undefined };
     const findings = auditLandEntryPoints(
       [{ path: unenforced.module, text: `export function ${unenforced.entry}() {}` }],
       [{ ...unenforced, gap: "todo" }],

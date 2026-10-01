@@ -196,6 +196,8 @@ stale notes inline.
 - **0171** The browser dashboard is a paired Host companion — `redskilled-web` is a separately supervised HTTPS process that serves the vendored RedDB Design System UI and reaches the daemon through local ACP; every browser uses a short-lived one-use invitation and an individually revocable session, the Host owns its local CA, and remote mutations stay inside an explicit versioned operation allowlist with no shell, arbitrary path, credential, or raw-ACP access. *(extends 0158/0166 without widening the daemon's network boundary)*
 - *(see also 0007, 0036, 0041)*
 
+- **0172** Ticket election precedes Worker admission across mobile and unattended drain; durable merge custody requires independent exact-head Countersign evidence before native merge intent, revokes intent on refusal or a moved head, and required CI covers complete Worker and daemon suites.
+
 ## Extraction / provider
 - **0010** LLM conversation extraction routes through RedDB's AI provider, INFERRED-only
 - *(see also 0035)*

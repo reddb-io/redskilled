@@ -158,7 +158,7 @@ describe("countersign vocabulary ratchet — a rename nothing pins is a rename t
     expect(Object.keys(CASTLE_STATE_MEMBERS)).toContain("countersigns.toonl");
     expect(
       LANE_WRITER_ENFORCEMENT.find((entry) => entry.lane === "countersigns")?.writers,
-    ).toEqual(["apps/plugin-dev/src/core/countersign-ledger.ts"]);
+    ).toEqual(["packages/shared/countersign-ledger.ts"]);
   });
 
   it("runs in every gate run, however narrow the cone", () => {

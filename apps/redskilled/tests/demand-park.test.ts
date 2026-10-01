@@ -162,6 +162,7 @@ describe("a completed gate-blocked turn is parked by the runner", () => {
     const records: DemandTurnRecord[] = [];
     const run = createDemandTurnRunner({
       paths: {} as never,
+      claimTicket: async () => ({ release: async () => {} }),
       startWorker: (() => { throw new Error("injected admission owns the birth"); }) as never,
       hostState: () => ({ workers: [] }),
       sessionJournal: { create: async () => {} } as never,
@@ -302,6 +303,7 @@ describe("two demand ticks over one refused item produce one park and one birth"
     const prompted: string[] = [];
     const run = createDemandTurnRunner({
       paths: {} as never,
+      claimTicket: async () => ({ release: async () => {} }),
       startWorker: (() => { throw new Error("injected admission owns the birth"); }) as never,
       hostState: () => ({ workers: [] }),
       sessionJournal: { create: async () => {} } as never,

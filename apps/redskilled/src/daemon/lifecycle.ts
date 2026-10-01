@@ -177,7 +177,7 @@ import {
 } from "../live-metrics.js";
 import {
   launchWorker,
-  mintHostWorkerId,
+  reserveHostWorkerId,
   RedskilledAdmissionError,
   type LaunchedWorker,
   type RedskilledWorkerSpec,
@@ -1041,7 +1041,7 @@ export async function startRedskilledDaemon(options: RedskilledDaemonOptions): P
               : undefined;
             const polled = lastQueue?.projects ?? [];
             refuseUnbriefableBirth(registered, birth, polled);
-            const turn = demandTurnForBirth(registered, birth, mintHostWorkerId(workers.keys()),
+            const turn = demandTurnForBirth(registered, birth, reserveHostWorkerId(workers.keys()),
               queueBriefing(polled, birth.project_label, birth.work_item), standingOrdersText)!;
             void acpControlPlane.runDemandTurn(turn).catch(async (error: unknown) => {
               const detail = `the unattended turn for project ${JSON.stringify(birth.project_label)} failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -1058,7 +1058,7 @@ export async function startRedskilledDaemon(options: RedskilledDaemonOptions): P
         }
         // Minted HERE because the launch template may mention the id; a different
         // id on the record would be one Worker the host and the work disagree about.
-        const workerId = mintHostWorkerId(workers.keys());
+        const workerId = reserveHostWorkerId(workers.keys());
         const registration = registered;
         const spec = workerSpecFromLaunch(
           // The argv comes from the plan (it is the registration's, copied), and

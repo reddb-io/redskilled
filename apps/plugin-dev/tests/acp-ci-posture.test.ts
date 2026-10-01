@@ -25,19 +25,9 @@ function jobBody(source: string, name: string): string {
 }
 
 /**
- * The CI posture issue #3878 chose, pinned so it stays chosen (issue #3897).
- *
- * Three broad package gates were deliberately removed from the pull-request
- * workflow: the RSP build/unit/integration job, the whole `apps/redskilled`
- * suite, and the whole engine-package suite that `packages/red-castle` carried
- * before #4013 renamed it. **A removal nothing pins is a removal that grows
- * back** — the next worker who wants coverage adds the broad job again, and the
- * PR gate silently returns to the cost the repo decided against.
- *
- * The other half of the same decision is what REPLACED them: focused,
- * black-box, seconds-cheap suites. So this file asserts both directions at
- * once. A focused suite that disappears is as much a regression as a broad gate
- * that reappears, and neither is visible to a type checker.
+ * ADR 0172 restores complete Worker and daemon suites in bounded Linux shards.
+ * Focused cross-platform ACP contracts remain required, while unrelated RSP
+ * gates retain the earlier exclusion. Pin each part of that deliberate scope.
  */
 const WORKSPACE_CI = "red-workspace-ci.yml";
 
@@ -66,16 +56,6 @@ const REMOVED_BROAD_GATES = [
     label: "RSP build, unit and integration",
     job: "rsp",
     commands: ["run: pnpm -C apps/rsp test", "run: pnpm -C apps/rsp test:integration"],
-  },
-  {
-    label: "the whole apps/redskilled suite",
-    job: undefined,
-    commands: ["run: pnpm -C apps/redskilled test\n"],
-  },
-  {
-    label: "the whole engine-package suite",
-    job: undefined,
-    commands: ["run: pnpm -C packages/red-castle test", "run: pnpm -C packages/worker test"],
   },
 ] as const;
 
@@ -115,6 +95,17 @@ describe("focused ACP CI posture", () => {
       expect(jobBody(source, "test")).not.toContain(`needs.${job}.result`);
     }
     for (const command of commands) expect(source).not.toContain(command);
+  });
+
+  it("requires both complete execution runtime suites in bounded shards", () => {
+    const source = repoFile(`.github/workflows/${WORKSPACE_CI}`);
+    const gate = jobBody(source, "execution-runtime");
+    expect(gate).toContain("package: [packages/worker, apps/redskilled]");
+    expect(gate).toContain("shard: [1, 2]");
+    expect(gate).toContain('test --shard="$RUNTIME_SHARD/2"');
+    expect(gate).toContain("--maxWorkers=2");
+    expect(jobBody(source, "test")).toContain("execution-runtime");
+    expect(jobBody(source, "test")).toContain("needs['execution-runtime'].result");
   });
 
   it("keeps the removed broad gates out of the cone selector that would revive them", () => {

@@ -11,6 +11,9 @@ import {
   type GithubLimitFact,
 } from "@reddb-io/github";
 import { isDeepStrictEqual } from "node:util";
+import { RedskilledGithubAuthorityError, validateAuthority, validateRead, refuse } from "./github-read-authority.js";
+export { RedskilledGithubAuthorityError } from "./github-read-authority.js";
+
 import { REDSKILLS_ACP_METHODS } from "@reddb-io/protocol-acp";
 import {
   githubCredentialScopeRefusal,
@@ -50,6 +53,7 @@ import {
 import {
   createGithubCustodian,
   type GithubCustodian,
+  type CreateGithubCustodianOptions,
   type RedskilledGithubCustodyHandoff,
   type RedskilledGithubCustodyRecord,
   type RedskilledGithubCustodyStatus,
@@ -160,6 +164,8 @@ export interface RedskilledGithubReadAnswer {
 
 export interface RedskilledGithubProjectReader {
   read(request: RedskilledGithubRead): Promise<RedskilledGithubReadAnswer>;
+  /** Host-side elections bypass dated cache answers; ordinary observations still coalesce. */
+  readLive?(request: RedskilledGithubRead): Promise<RedskilledGithubReadAnswer>;
   write(request: RedskilledGithubWriteRequest): Promise<RedskilledGithubWriteAnswer>;
   /** Retry this Project's durable pending writes after a daemon replacement. */
   resumeWrites(): Promise<readonly RedskilledGithubWriteAnswer[]>;
@@ -222,6 +228,7 @@ export interface CreateRedskilledGithubGatewayOptions {
   /** Durable host-state snapshot for merge obligations accepted by this gateway. */
   readonly custodyPath?: string;
   readonly custodyUpstream?: RedskilledGithubCustodyUpstream;
+  readonly custodyCountersignGate?: CreateGithubCustodianOptions["countersignGate"];
   readonly custodyTickMs?: number;
   readonly custodyInertMs?: number;
   readonly clock?: () => string;
@@ -255,13 +262,6 @@ interface RefreshState {
   answer?: KeptGithubAnswer;
   validators?: RedskilledGithubValidators;
   timer?: NodeJS.Timeout;
-}
-
-export class RedskilledGithubAuthorityError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "RedskilledGithubAuthorityError";
-  }
 }
 
 /**
@@ -419,6 +419,7 @@ export function createRedskilledGithubGateway(
     : createGithubCustodian({
         path: options.custodyPath,
         upstream: options.custodyUpstream,
+        ...(options.custodyCountersignGate == null ? {} : { countersignGate: options.custodyCountersignGate }),
         clock,
         tickMs: Math.max(1, options.custodyTickMs ?? refreshMs),
         inertMs: Math.max(1, options.custodyInertMs ?? Math.max(refreshMs * 3, 60_000)),
@@ -472,6 +473,20 @@ export function createRedskilledGithubGateway(
 
           const pending = inFlight.get(key);
           if (pending != null) return pending;
+          let state = states.get(key);
+          if (state == null) {
+            state = { key, scope, project, credential, read };
+            states.set(key, state);
+            trimStates();
+          }
+          return refreshState(state);
+        },
+        async readLive(request) {
+          const read = validateRead(project, request);
+          const key = cacheKey(project, read);
+          // A refresh begun before the caller's write cannot elect its owner.
+          // Let that observation finish, then start a post-write observation.
+          await inFlight.get(key)?.catch(() => undefined);
           let state = states.get(key);
           if (state == null) {
             state = { key, scope, project, credential, read };
@@ -666,92 +681,6 @@ function publicAnswer(
   };
 }
 
-function validateAuthority(
-  authority: RedskilledGithubProjectAuthority,
-): RedskilledGithubProjectAuthority {
-  const fields = [authority.projectId, authority.projectLabel, authority.workspacePath, authority.credentialProfile];
-  if (fields.some((value) => typeof value !== "string" || value.trim() === "")) {
-    throw new RedskilledGithubAuthorityError("a GitHub reader needs one resolved Project and credential profile");
-  }
-  if (!/^[^/\s]+\/[^/\s]+$/.test(authority.projectLabel)) {
-    throw new RedskilledGithubAuthorityError("the resolved Project has no canonical GitHub repository identity");
-  }
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(authority.credentialProfile)) {
-    throw new RedskilledGithubAuthorityError("the daemon-owned credential profile name is not publishable");
-  }
-  return { ...authority };
-}
-
-function validateRead(
-  project: RedskilledGithubProjectAuthority,
-  request: RedskilledGithubRead,
-): RedskilledGithubRead {
-  if (request == null || typeof request !== "object") return refuse("a GitHub read must be an object");
-  if (request.kind === "rest") {
-    requireOnlyKeys(request, ["kind", "path"]);
-    return validateRestRead(project, request);
-  }
-  if (request.kind === "graphql") {
-    requireOnlyKeys(request, ["kind", "selection"]);
-    return validateGraphqlRead(request);
-  }
-  if (request.kind === "repository-fetch") {
-    requireOnlyKeys(request, ["kind", "ref"]);
-    return validateRepositoryFetch(request);
-  }
-  return refuse("Project authority permits only REST, GraphQL, and repository-fetch reads");
-}
-
-function validateRestRead(
-  project: RedskilledGithubProjectAuthority,
-  request: Extract<RedskilledGithubRead, { kind: "rest" }>,
-): RedskilledGithubRead {
-  let path = typeof request.path === "string" ? request.path.trim().replace(/^\/+/, "") : "";
-  const repositoryPrefix = `repos/${project.projectLabel}/`;
-  if (path.startsWith("repos/")) {
-    if (!path.toLowerCase().startsWith(repositoryPrefix.toLowerCase())) {
-      return refuse("a Project GitHub reader cannot address another repository");
-    }
-    path = path.slice(repositoryPrefix.length);
-  }
-  if (path === "" || path.includes("\\") || path.split("/").some((part) => part === ".." || part === ".")) {
-    return refuse("a Project GitHub REST read needs one repository-relative path");
-  }
-  const root = path.split(/[/?#]/, 1)[0]!.toLowerCase();
-  if (["admin", "applications", "enterprises", "installation", "installations", "orgs", "rate_limit", "user", "users"].includes(root)) {
-    return refuse("Project authority cannot use the GitHub gateway for host or account administration");
-  }
-  return { kind: "rest", path };
-}
-
-function validateGraphqlRead(
-  request: Extract<RedskilledGithubRead, { kind: "graphql" }>,
-): RedskilledGithubRead {
-  const selection = typeof request.selection === "string"
-    ? request.selection.trim().replace(/\s+/g, " ")
-    : "";
-  if (selection === "") return refuse("a Project GraphQL read needs a repository field selection");
-  // The upstream wraps this selection inside repository(owner:, name:). Root
-  // operations and root-only fields are therefore refused rather than parsed or
-  // executed as caller-authored documents.
-  if (/\b(query|mutation|subscription|repository|viewer|user|organization|enterprise|node|nodes|search|rateLimit)\b\s*(?:\(|\{)/i.test(selection) || selection.includes("$")) {
-    return refuse("a Project GraphQL read may select fields only from its bound repository");
-  }
-  return { kind: "graphql", selection };
-}
-
-function validateRepositoryFetch(
-  request: Extract<RedskilledGithubRead, { kind: "repository-fetch" }>,
-): RedskilledGithubRead {
-  if (request.ref == null || request.ref.trim() === "") return { kind: "repository-fetch" };
-  const ref = request.ref.trim();
-  if (!/^refs\/(heads|tags)\/[A-Za-z0-9][A-Za-z0-9._\/-]*$/.test(ref) ||
-    ref.includes("..") || ref.includes("//") || ref.endsWith(".") || ref.endsWith("/") || ref.includes("@{")) {
-    return refuse("a Project repository fetch may name only one ordinary branch or tag ref");
-  }
-  return { kind: "repository-fetch", ref };
-}
-
 function cacheKey(project: RedskilledGithubProjectAuthority, read: RedskilledGithubRead): string {
   const request = read.kind === "rest"
     ? read.path
@@ -770,17 +699,6 @@ function validateWake(value: RedskilledGithubWake): void {
     Object.keys(value).length !== 1 || typeof value.deliveryId !== "string" ||
     value.deliveryId.trim() === "" || value.deliveryId.length > 256) {
     refuse("a GitHub webhook wake may carry only one bounded delivery identifier");
-  }
-}
-
-function refuse(message: string): never {
-  throw new RedskilledGithubAuthorityError(message);
-}
-
-function requireOnlyKeys(value: object, allowed: readonly string[]): void {
-  const extra = Object.keys(value).find((key) => !allowed.includes(key));
-  if (extra != null) {
-    refuse("a Project GitHub read cannot carry Project, credential, remote, or host authority fields");
   }
 }
 

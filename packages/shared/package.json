@@ -53,7 +53,9 @@
     "./verify-labels.js": "./verify-labels.ts",
     "./worker-scope.js": "./worker-scope.ts",
     "./worker-workspace.js": "./worker-workspace.ts",
-    "./working-mode.js": "./working-mode.ts"
+    "./working-mode.js": "./working-mode.ts",
+    "./countersign-ledger.js": "./countersign-ledger.ts",
+    "./countersign-judgement.js": "./countersign-judgement.ts"
   },
   "dependencies": {
     "@reddb-io/toon": "catalog:",

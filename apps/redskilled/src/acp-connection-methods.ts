@@ -16,7 +16,7 @@ import type { PublicSession } from "./acp-control-plane.js";
 import type { AcpTargetedDispatchIntent } from "./acp-dispatch-intent.js";
 import { githubMethodDomain } from "./acp-github.js";
 import type { DemandTurnRequest, DemandTurnResult } from "./acp-demand-turn.js";
-import { mintHostWorkerId } from "./worker-launch.js";
+import { reserveHostWorkerId } from "./worker-launch.js";
 import {
   createAcpGithubGoTicketTracker,
   goAcceptanceCriteria,
@@ -223,7 +223,7 @@ export function goTurnAdmit(deps: ConnectionMethodDeps): GoAdmit {
   return async (dispatch, _context, brief) => {
     const project = deps.scopedProject();
     const state = deps.hostState();
-    const workerId = mintHostWorkerId(state.workers.map((worker) => worker.worker_id));
+    const workerId = reserveHostWorkerId(state.workers.map((worker) => worker.worker_id));
     const base = state.registrations
       ?.find((registration) => registration.project_label === project.projectLabel)
       ?.trunk?.branch ?? "main";

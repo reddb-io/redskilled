@@ -46,6 +46,7 @@ describe("redskilled GitHub merge custody", () => {
       custodyPath: join(root, "github-custody.toon"),
       custodyTickMs: 1,
       writeUpstream: async ({ write }) => write.kind === "pull-request" ? { number: 73 } : {},
+      custodyCountersignGate: async () => ({ allowed: true, matchedBy: "head-sha", countersign: "test-verified", identity: "human:reviewer" }),
       custodyUpstream: {
         async observe() {
           if (nativeIntent) {
@@ -54,12 +55,12 @@ describe("redskilled GitHub merge custody", () => {
           }
           return merged
             ? { forge_state: "merged", native_intent: false }
-            : { forge_state: "open-clean", native_intent: nativeIntent };
+            : { forge_state: "open-clean", native_intent: nativeIntent, head_sha: "a".repeat(40) };
         },
         async arm() {
           armCalls += 1;
           nativeIntent = true;
-          return { forge_state: "open-pending", native_intent: true };
+          return { forge_state: "open-pending", native_intent: true, head_sha: "a".repeat(40) };
         },
       },
     });
@@ -93,6 +94,7 @@ describe("redskilled GitHub merge custody", () => {
       await expect(handingOff.agent.request(REDSKILLED_GITHUB_CUSTODY_HANDOFF_METHOD, {
         pull_request: 73,
         owner_ticket: 3653,
+        armed_head: "a".repeat(40),
         branch: "worker/3653",
         base: "main",
       })).resolves.toMatchObject({ pull_request: 73, state: "active" });
@@ -138,10 +140,11 @@ describe("redskilled GitHub merge custody", () => {
       custodyInertMs: 1_000,
       clock: () => now,
       writeUpstream: async () => ({ number: 73 }),
+      custodyCountersignGate: async () => ({ allowed: true, matchedBy: "head-sha", countersign: "test-verified", identity: "human:reviewer" }),
       custodyUpstream: {
         async observe() {
           releases += 1;
-          return { forge_state: "open-pending", native_intent: true };
+          return { forge_state: "open-pending", native_intent: true, head_sha: "a".repeat(40) };
         },
         async arm() {
           throw new Error("an already armed pull request must not be armed twice");
@@ -157,6 +160,7 @@ describe("redskilled GitHub merge custody", () => {
     const request = {
       pull_request: 73,
       owner_ticket: 3653,
+      armed_head: "a".repeat(40),
       branch: "worker/3653",
       base: "main",
     } as const;
@@ -186,6 +190,7 @@ describe("redskilled GitHub merge custody", () => {
       custodyInertMs: 60_000,
       clock: () => now,
       writeUpstream: async () => ({ number: 73 }),
+      custodyCountersignGate: async () => ({ allowed: true, matchedBy: "head-sha", countersign: "test-verified", identity: "human:reviewer" }),
       custodyUpstream: {
         async observe() {
           throw new Error("the closed fixture must never tick");
@@ -204,6 +209,7 @@ describe("redskilled GitHub merge custody", () => {
     const handoff = {
       pull_request: 73,
       owner_ticket: 3659,
+      armed_head: "a".repeat(40),
       branch: "worker/3659",
       base: "main",
     } as const;

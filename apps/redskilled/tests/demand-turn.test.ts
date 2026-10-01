@@ -46,12 +46,14 @@ function runner(
   records: DemandTurnRecord[] = [],
   opened: Array<{ sessionId: string }> = [],
   ticketBody?: (project: unknown, issue: number) => Promise<string | null>,
+  claimTicket?: (project: unknown, ticket: number, workerId: string) => Promise<{ release(): Promise<void> }>,
 ) {
   return {
     records,
     opened,
     run: createDemandTurnRunner({
       paths: {} as never,
+      claimTicket: claimTicket ?? (async () => ({ release: async () => {} })),
       ...(ticketBody == null ? {} : { ticketBody: ticketBody as never }),
       startWorker: (() => {
         throw new Error("an injected admission owns the birth in this test");
@@ -328,5 +330,32 @@ describe("what a turn's answer says happened", () => {
   it("falls back to the stop reason for an ordinary prompt turn that states no verdict", () => {
     expect(describeTurnOutcome({ stopReason: "end_turn", _meta: {} } as never))
       .toBe("no-workflow-outcome (end_turn)");
+  });
+});
+
+
+describe("pre-birth demand claim custody", () => {
+  const ticket = { number: 42, worker_id: "W1", title: "Implement", base: "main", handoff: "work" };
+  it("wins and marks the handoff preclaimed before the coder is admitted", async () => {
+    const events: string[] = [];
+    const worker = workerStub({ stopReason: "end_turn" });
+    const { run } = runner(async () => { events.push("birth"); return worker; }, [], [], undefined,
+      async () => { events.push("claim"); return { release: async () => {} }; });
+    await run({ project, prompt: "work", workerId: "W1", ticket });
+    expect(events).toEqual(["claim", "birth"]);
+    expect(worker.prompted.mock.calls[0]?.[1]).toMatchObject({ _meta: { redskills: { ticket: { preclaimed: true, worker_id: "W1" } } } });
+  });
+  it("creates no Worker when the election is lost", async () => {
+    const admit = vi.fn(async () => workerStub({ stopReason: "end_turn" }));
+    const { run } = runner(admit, [], [], undefined, async () => { throw new Error("lost to mobile"); });
+    await expect(run({ project, prompt: "work", ticket })).rejects.toThrow("lost to mobile");
+    expect(admit).not.toHaveBeenCalled();
+  });
+  it("releases the won claim when admission fails", async () => {
+    const release = vi.fn(async () => {});
+    const { run } = runner(async () => { throw new Error("birth failed"); }, [], [], undefined,
+      async () => ({ release }));
+    await expect(run({ project, prompt: "work", ticket })).rejects.toThrow("birth failed");
+    expect(release).toHaveBeenCalledOnce();
   });
 });

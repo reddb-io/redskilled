@@ -380,6 +380,63 @@ jobs:
         if: env.RUN_ANY != 'true'
         run: echo "No non-dev package is in the affected cone (scope ${{ needs.scope.outputs.mode }}) — no suite to run."
 
+  # Worker and daemon execution are required alongside the plugin contract suites.
+  # Shards bound memory and wall time; the cone skips work, never the required receipt.
+  execution-runtime:
+    runs-on: ubuntu-latest
+    needs: scope
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [packages/worker, apps/redskilled]
+        shard: [1, 2]
+    env:
+      RUN_RUNTIME: ${{ contains(fromJSON(needs.scope.outputs.test_packages), matrix.package) }}
+      REDDB_SKIP_POSTINSTALL: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Compose pinned skills
+        if: env.RUN_RUNTIME == 'true'
+        run: node scripts/prepare-skills.mjs
+      - if: env.RUN_RUNTIME == 'true'
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
+      - if: env.RUN_RUNTIME == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Install pinned tq
+        if: env.RUN_RUNTIME == 'true' && matrix.package == 'apps/redskilled'
+        env:
+          TQ_VERSION: v0.26.2
+        run: |
+          set -euo pipefail
+          tq_root="$RUNNER_TEMP/tq"
+          mkdir -p "$tq_root/bin"
+          base="https://github.com/reddb-io/tq/releases/download/${TQ_VERSION}"
+          scripts/ci-fetch-with-retry.sh "$base/tq-linux-x86_64-static" "$tq_root/bin/tq"
+          scripts/ci-fetch-with-retry.sh "$base/tq-linux-x86_64-static.sha256" "$tq_root/tq.sha256"
+          echo "$(cut -d' ' -f1 "$tq_root/tq.sha256")  $tq_root/bin/tq" | sha256sum -c -
+          chmod +x "$tq_root/bin/tq"
+          echo "$tq_root/bin" >> "$GITHUB_PATH"
+          "$tq_root/bin/tq" --version
+
+      - name: Install workspace dependencies
+        if: env.RUN_RUNTIME == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Check Worker types
+        if: env.RUN_RUNTIME == 'true' && matrix.package == 'packages/worker' && matrix.shard == 1
+        run: pnpm -C packages/worker typecheck
+      - name: Test the execution runtime shard
+        if: env.RUN_RUNTIME == 'true'
+        env:
+          RUNTIME_PACKAGE: ${{ matrix.package }}
+          RUNTIME_SHARD: ${{ matrix.shard }}
+        run: pnpm -C "$RUNTIME_PACKAGE" test --shard="$RUNTIME_SHARD/2" --maxWorkers=2 --minWorkers=1 --no-file-parallelism
+      - name: Report narrowed scope
+        if: env.RUN_RUNTIME != 'true'
+        run: echo "Execution runtime is outside the affected cone."
+
   # The local ACP authority contract is deliberately focused enough to run on
   # both native endpoint families. Linux proves the known daemon Unix socket and
   # daemon-assigned Worker sockets; Windows proves the same public and Worker ACP
@@ -419,25 +476,22 @@ jobs:
         if: env.RUN_ACP == 'true'
         run: pnpm -C apps/redskilled test:acp-local-transport
 
-      # The broad daemon suite is not a PR gate: explicitly exercise log files,
-      # active rotation, process races, crash capture and tray dispatch on both
-      # supported desktop endpoint families. No desktop session is required.
+      # The complete daemon suite runs in execution-runtime on Linux. These
+      # focused checks also prove both supported desktop endpoint families.
+      # No desktop session is required.
       - name: Test bounded diagnostics and tray log access
         if: env.RUN_ACP == 'true'
         run: pnpm -C apps/redskilled exec vitest run tests/diagnostic-log.test.ts tests/system-tray.test.ts tests/help-offline.test.ts
 
-      # The broad `apps/redskilled` gate is deliberately absent from this
-      # workflow (#3878), so the five supported Agents need a focused suite of
-      # their own: without it, a sixth Agent, a dropped Agent, or one admitted
-      # without the baseline capability probe would reach main unseen.
+      # Keep the supported Agent conformance matrix explicit on both platforms,
+      # including the baseline capability probe before admission.
       - name: Test the focused ACP Agent conformance matrix
         if: env.RUN_ACP == 'true'
         run: pnpm -C apps/redskilled test:acp-agent-conformance
 
       # The harvest deadline decides whether a budgeted drain admits a claim or
       # spends its last third landing what is in flight (#4170). Both halves are
-      # daemon answers over the socket, so they need the daemon — and the broad
-      # gate that used to carry it is gone.
+      # daemon answers over the socket, so prove both platforms explicitly.
       - name: Test the harvest deadline over ACP
         if: env.RUN_ACP == 'true'
         run: pnpm -C apps/redskilled test:acp-harvest-deadline
@@ -456,7 +510,7 @@ jobs:
     # and shrink their own steps, so a docs-only PR reaches this job green.
     if: always()
     runs-on: ubuntu-latest
-    needs: [scope, test-shard, test-packages, acp-local-transport]
+    needs: [scope, test-shard, test-packages, execution-runtime, acp-local-transport]
     steps:
       - name: Fail when a test dependency failed or was cancelled
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
@@ -464,6 +518,7 @@ jobs:
           echo "scope=${{ needs.scope.result }}"
           echo "test-shard=${{ needs['test-shard'].result }}"
           echo "test-packages=${{ needs['test-packages'].result }}"
+          echo "execution-runtime=${{ needs['execution-runtime'].result }}"
           echo "acp-local-transport=${{ needs['acp-local-transport'].result }}"
           exit 1
 

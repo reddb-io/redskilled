@@ -521,3 +521,38 @@ describe("the Project-scoped redskilled GitHub gateway", () => {
     }
   });
 });
+
+
+describe("authoritative claim observations", () => {
+  it("starts a new observation after an older in-flight read finishes", async () => {
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    let count = 0;
+    const gateway = createRedskilledGithubGateway({ upstream: async () => {
+      const snapshot = ++count;
+      if (snapshot === 1) await blocked;
+      return { value: snapshot, budget: null };
+    }, freshMs: 60_000 });
+    const reader = gateway.forProject({ projectId: "github:1", projectLabel: "acme/repo", workspacePath: "/fixture", credentialProfile: "personal" }, { secret: "fixture" });
+    const read = { kind: "rest" as const, path: "issues/42/comments" };
+    try {
+      const old = reader.read(read);
+      const election = reader.readLive!(read);
+      release();
+      expect((await old).value).toBe(1);
+      expect((await election).value).toBe(2);
+    } finally { release(); gateway.close(); }
+  });
+
+  it("bypasses a fresh dated cache while ordinary reads retain their coalesced answer", async () => {
+    let count = 0;
+    const gateway = createRedskilledGithubGateway({ upstream: async () => ({ value: ++count, budget: null }), freshMs: 60_000 });
+    const reader = gateway.forProject({ projectId: "github:1", projectLabel: "acme/repo", workspacePath: "/fixture", credentialProfile: "personal" }, { secret: "fixture" });
+    const read = { kind: "rest" as const, path: "repos/acme/repo/issues/42/comments?per_page=100&page=1" };
+    try {
+      expect((await reader.read(read)).value).toBe(1);
+      expect((await reader.read(read)).value).toBe(1);
+      expect((await reader.readLive!(read)).value).toBe(2);
+    } finally { gateway.close(); }
+  });
+});

@@ -226,7 +226,7 @@ function ticket(overrides: Partial<RedskillsTicketHandoff> = {}): RedskillsTicke
       "",
       "- [ ] Running `pnpm -C apps/redskilled test` passes.",
     ].join("\n"),
-    worker_id: "stub-host:VSk6WPt",
+    worker_id: "VSk6WPt",
     runner: "redcode",
     ...overrides,
   };
@@ -251,14 +251,14 @@ describe("a real `redskilled acp-worker` running one Ticket", () => {
 
       const outcome = (response._meta as { redskills?: { ticket?: Record<string, unknown> } })
         ?.redskills?.ticket;
-      expect(outcome?.outcome).toBe("landed");
+      expect(outcome?.outcome, String(outcome?.detail)).toBe("landed");
       expect(outcome?.rounds).toBe(1);
       expect(outcome?.pullRequest).toBe(4321);
 
       // claim — a tracker write the Worker asked the daemon to perform.
       expect(worker.daemon.claims).toHaveLength(1);
       expect(worker.daemon.claims[0]!.issue).toBe(4020);
-      expect(worker.daemon.claims[0]!.body).toContain("worker=stub-host:VSk6WPt");
+      expect(worker.daemon.claims[0]!.body).toContain("worker=VSk6WPt");
       expect(worker.daemon.claims[0]!.body).toContain("runner=redcode");
 
       // implement — the child agent edited and committed in the real Worktree,
@@ -268,7 +268,7 @@ describe("a real `redskilled acp-worker` running one Ticket", () => {
 
       // publish — the branch and commit the turn produced, named to the parent.
       expect(worker.daemon.published).toHaveLength(1);
-      expect(worker.daemon.published[0]!.branch).toBe("afk/4020-ticket-loop");
+      expect(worker.daemon.published[0]!.branch).toBe("red/VSk6WPt/4020");
       expect(worker.daemon.published[0]!.commit).toBe(headCommit(worktree));
 
       // land — custody armed against the Ticket that owns the merge.
@@ -322,7 +322,7 @@ describe("a real `redskilled acp-worker` running one Ticket", () => {
 
       const outcome = (response._meta as { redskills?: { ticket?: Record<string, unknown> } })
         ?.redskills?.ticket;
-      expect(outcome?.outcome).toBe("landed");
+      expect(outcome?.outcome, String(outcome?.detail)).toBe("landed");
       expect(outcome?.rounds).toBe(2);
 
       // The re-seed happened IN PLACE: same branch, and the first round's

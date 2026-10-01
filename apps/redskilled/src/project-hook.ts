@@ -8,7 +8,7 @@ import {
 import type { RedskilledWorkerView } from "./host-state.js";
 import { workerSpecFromLaunch } from "./launch-template.js";
 import type { RedskilledProjectRegistration } from "./project-registration.js";
-import { mintHostWorkerId, RedskilledAdmissionError, type RedskilledWorkerSpec } from "./worker-launch.js";
+import { reserveHostWorkerId, RedskilledAdmissionError, type RedskilledWorkerSpec } from "./worker-launch.js";
 
 export interface RedskilledProjectHookRuntimeOptions {
   readonly registration: (projectLabel: string) => RedskilledProjectRegistration | undefined;
@@ -60,7 +60,7 @@ export function createRedskilledProjectHookRuntime(
     try {
       const spec = workerSpecFromLaunch(
         template,
-        { worker_id: mintHostWorkerId(options.liveWorkerIds()), slot: 0, workspace_path: eventWorker.workspace_path },
+        { worker_id: reserveHostWorkerId(options.liveWorkerIds()), slot: 0, workspace_path: eventWorker.workspace_path },
         { project_label: eventWorker.project_label },
       );
       const admission = options.admit(spec);

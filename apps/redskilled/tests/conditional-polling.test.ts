@@ -93,7 +93,7 @@ describe("the daemon's conditional REST poll path", () => {
     expect(headers[1]!.get("if-none-match")).toBe('"queue-v1"');
   });
 
-  it("reuses every held activity count when all four panorama reads answer 304", async () => {
+  it("reuses every held activity count when all five panorama reads answer 304", async () => {
     const requests: Array<{ readonly path: string; readonly etag: string | null }> = [];
     const fetchImpl: typeof fetch = async (url, init) => {
       const parsed = new URL(String(url));
@@ -102,11 +102,11 @@ describe("the daemon's conditional REST poll path", () => {
       requests.push({ path, etag });
       const kind = path.endsWith("/search/issues")
         ? "merged"
-        : path.endsWith("/pulls") ? "prs" : parsed.searchParams.get("state") === "open" ? "issues" : "closed";
+        : path.endsWith("/commits") ? "trunk" : path.endsWith("/pulls") ? "prs" : parsed.searchParams.get("state") === "open" ? "issues" : "closed";
       if (etag === `"${kind}-v1"`) {
         return new Response(null, { status: 304, headers: { etag } });
       }
-      const count = kind === "prs" ? 2 : kind === "issues" ? 3 : kind === "merged" ? 4 : 5;
+      const count = kind === "trunk" ? 0 : kind === "prs" ? 2 : kind === "issues" ? 3 : kind === "merged" ? 4 : 5;
       if (kind === "merged") {
         return new Response(JSON.stringify({ total_count: count, items: [] }), {
           status: 200,
@@ -148,13 +148,14 @@ describe("the daemon's conditional REST poll path", () => {
       counts: { open_pull_requests: 2, open_issues: 3, recently_closed: 5, merged_today: 4 },
     });
     expect(unchanged.projects[0]!.counts).toEqual(fresh.projects[0]!.counts);
-    expect(unchanged.request_count).toBe(4);
-    expect(requests).toHaveLength(8);
-    expect(requests.slice(4).map((request) => request.etag)).toEqual([
+    expect(unchanged.request_count).toBe(5);
+    expect(requests).toHaveLength(10);
+    expect(requests.slice(5).map((request) => request.etag)).toEqual([
       '"issues-v1"',
       '"prs-v1"',
       '"closed-v1"',
       '"merged-v1"',
+      '"trunk-v1"',
     ]);
   });
 
@@ -164,6 +165,7 @@ describe("the daemon's conditional REST poll path", () => {
       const parsed = new URL(String(url));
       paths.push(`${parsed.pathname}?${parsed.searchParams.get("state")}`);
       if (parsed.pathname.endsWith("/search/issues")) return json({ total_count: 3, items: [] });
+      if (parsed.pathname.endsWith("/commits")) return json([]);
       if (parsed.pathname.endsWith("/pulls")) {
         return json([{ number: 1 }, { number: 2 }]);
       }
@@ -202,10 +204,10 @@ describe("the daemon's conditional REST poll path", () => {
       outcome: "counted",
       counts: { open_pull_requests: 2, open_issues: 4, ready_queue: 2, human_queue: 1 },
     });
-    // Four reads, with queue counters still a filter over the open-Issue bytes:
-    // bytes this poll already holds, never two more label-filtered lists.
-    expect(activity.request_count).toBe(4);
-    expect(paths).toHaveLength(4);
+    // Five reads, including trunk commits. Queue counters still filter the
+    // open-Issue bytes, without two more label-filtered lists.
+    expect(activity.request_count).toBe(5);
+    expect(paths).toHaveLength(5);
   });
 
   it("leaves both queue counters absent when a project names no label", async () => {

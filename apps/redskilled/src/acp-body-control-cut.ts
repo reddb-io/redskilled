@@ -189,9 +189,9 @@ export const CONTROL_PLANE_SURFACES: readonly ControlPlaneSurface[] = [
     surface: "admission",
     modules: [
       "apps/redskilled/src/acp-worker-admission.ts",
-      "apps/redskilled/src/acp-go-admission.ts",
+      "apps/redskilled/src/acp-demand-turn.ts",
     ],
-    defines: ["admitNativeAcpWorker", "createGoWorkerAdmission"],
+    defines: ["admitNativeAcpWorker", "createDemandTurnRunner"],
     why: "a Worker that could admit a Worker is a Worker that outlives its own reaping",
   },
   {

@@ -14,7 +14,7 @@ import {
 
 const roots: string[] = [];
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 20 })));
 });
 
 const PROJECT = {
@@ -56,6 +56,7 @@ describe("the armed head on merge custody (#4130)", () => {
     const path = await custodyPath();
     const { upstream, armCalls } = upstreamFixture(() => ARMED);
     const custodian = createGithubCustodian({
+      countersignGate: async () => ({ allowed: true, matchedBy: "head-sha", countersign: "test-verified", identity: "human:reviewer" }),
       path, upstream, clock: () => new Date().toISOString(), tickMs: 5, inertMs: 60_000,
     });
     const record = await custodian.handoff(PROJECT, CREDENTIAL, {
@@ -79,6 +80,7 @@ describe("the armed head on merge custody (#4130)", () => {
     const path = await custodyPath();
     const { upstream, armCalls } = upstreamFixture(() => MOVED);
     const custodian = createGithubCustodian({
+      countersignGate: async () => ({ allowed: true, matchedBy: "head-sha", countersign: "test-verified", identity: "human:reviewer" }),
       path, upstream, clock: () => new Date().toISOString(), tickMs: 5, inertMs: 60_000,
     });
     await custodian.handoff(PROJECT, CREDENTIAL, {
@@ -96,6 +98,7 @@ describe("the armed head on merge custody (#4130)", () => {
     const path = await custodyPath();
     const { upstream } = upstreamFixture(() => ARMED);
     const custodian = createGithubCustodian({
+      countersignGate: async () => ({ allowed: true, matchedBy: "head-sha", countersign: "test-verified", identity: "human:reviewer" }),
       path, upstream, clock: () => new Date().toISOString(), tickMs: 3_600_000, inertMs: 3_600_000,
     });
     const handoff = {
@@ -107,17 +110,20 @@ describe("the armed head on merge custody (#4130)", () => {
     custodian.close();
   });
 
-  it("a record written before the armed head existed still parses and never reports a mismatch", async () => {
+  it("a legacy record without an armed head remains readable but cannot authorize merge", async () => {
     const path = await custodyPath();
     const { upstream, armCalls } = upstreamFixture(() => MOVED);
     const custodian = createGithubCustodian({
+      countersignGate: async () => ({ allowed: true, matchedBy: "head-sha", countersign: "test-verified", identity: "human:reviewer" }),
       path, upstream, clock: () => new Date().toISOString(), tickMs: 5, inertMs: 60_000,
     });
     await custodian.handoff(PROJECT, CREDENTIAL, {
       pull_request: 76, owner_ticket: 4130, branch: "afk/4130-legacy", base: "main",
     });
     await tickOnce();
-    expect(armCalls()).toBeGreaterThan(0);
+    expect(armCalls()).toBe(0);
+    const status = await custodian.status(PROJECT, CREDENTIAL);
+    expect(status.records[0]?.next_action).toBe("await-countersign");
     custodian.close();
   });
 });
@@ -136,6 +142,7 @@ describe("the ACP land method's verdict source is the head it was handed (#4138)
     const path = await custodyPath();
     const { upstream } = upstreamFixture(() => ARMED);
     const custodian = createGithubCustodian({
+      countersignGate: async () => ({ allowed: true, matchedBy: "head-sha", countersign: "test-verified", identity: "human:reviewer" }),
       path, upstream, clock: () => new Date().toISOString(), tickMs: 3_600_000, inertMs: 3_600_000,
     });
 
@@ -151,6 +158,7 @@ describe("the ACP land method's verdict source is the head it was handed (#4138)
     const path = await custodyPath();
     const { upstream, armCalls } = upstreamFixture(() => MOVED);
     const custodian = createGithubCustodian({
+      countersignGate: async () => ({ allowed: true, matchedBy: "head-sha", countersign: "test-verified", identity: "human:reviewer" }),
       path, upstream, clock: () => new Date().toISOString(), tickMs: 5, inertMs: 60_000,
     });
     await custodian.handoff(PROJECT, CREDENTIAL, {

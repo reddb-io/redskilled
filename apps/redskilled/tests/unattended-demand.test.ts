@@ -38,7 +38,9 @@ const servers: Server[] = [];
 afterEach(async () => {
   for (const daemon of running.splice(0)) await daemon.stop().catch(() => undefined);
   for (const server of servers.splice(0)) await new Promise<void>((resolve) => server.close(() => resolve()));
-  for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
+  // stop closes admission, but a pending snapshot can finish its disk write.
+  // Retry only transient removal races; persistent cleanup faults still fail.
+  for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 25 });
 });
 
 async function scratch(prefix: string): Promise<string> {
