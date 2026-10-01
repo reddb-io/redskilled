@@ -22,7 +22,7 @@ import {
   type AcpProjectIdentity,
   type AcpProjectWorkspace,
 } from "./project-workspace.js";
-import { mintHostWorkerId } from "./worker-launch.js";
+import { reserveHostWorkerId } from "./worker-launch.js";
 import { claimTicketOwnership } from "./ticket-claim.js";
 
 interface GithubIssueReference {
@@ -96,7 +96,7 @@ export function createMobileTicketDispatcher(options: CreateMobileTicketDispatch
       path: `repos/${repository.fullName}/issues/${reference.ticket}`,
     }).then((answer) => answer.value), reference.ticket);
 
-    const workerId = mintHostWorkerId(options.hostState().workers.map((worker) => worker.worker_id));
+    const workerId = reserveHostWorkerId(options.hostState().workers.map((worker) => worker.worker_id));
     const claim = await claimTicketOwnership(reader, repository.fullName, reference.ticket, workerId);
 
     let admitted = false;

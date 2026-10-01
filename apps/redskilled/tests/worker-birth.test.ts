@@ -3,7 +3,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { readRedskilledHostState, startRedskilledWorker } from "../src/client.js";
 import { startRedskilledDaemon, type RedskilledDaemon } from "../src/daemon.js";
 import { isRedskilledWorkerView } from "../src/host-state.js";
@@ -13,6 +13,7 @@ import {
   encodeHostWorkerId,
   launchWorker,
   mintHostWorkerId,
+  reserveHostWorkerId,
   RedskilledWorkerSpecError,
   type RedskilledWorkerSpec,
 } from "../src/worker-launch.js";
@@ -160,6 +161,17 @@ describe("worker birth through the socket", () => {
 });
 
 describe("host-minted Worker ids", () => {
+  it("reserves distinct pre-birth identities while the live snapshot is unchanged", () => {
+    const frozenNow = Date.now();
+    const frozen = vi.spyOn(Date, "now").mockReturnValue(frozenNow);
+    try {
+      const ids = Array.from({ length: 8 }, () => reserveHostWorkerId([]));
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(ids).toEqual([...ids].sort());
+      expect(ids.every((id) => /^[0-9A-Za-z]{7}$/.test(id))).toBe(true);
+    } finally { frozen.mockRestore(); }
+  });
+
   // ADR 0149 §3: the id IS the birth instant, so the order is readable from the
   // name and a prune is a prefix scan.
   const FIXED_WIDTH_BASE62 = /^[0-9A-Za-z]{7}$/;
@@ -310,6 +322,7 @@ describe("the daemon accepts the workspace path as given", () => {
     expect(probes).toEqual({
       platform: "linux",
       systemdRun: null,
+      containerEngines: { docker: null, podman: null },
       userSession: false,
       jobObjects: { available: false, reason: expect.stringContaining("Windows backend") },
       // POSIX shell placement stopped being "the macOS backend" when it became

@@ -45,7 +45,7 @@ import type { RedskilledGithubGatewayRegistration } from "./github-gateway.js";
 import { workerModeEnv } from "@reddb-io/shared/working-mode.js";
 import { resolveAcpWorkerEndpoint, type RedskilledPaths } from "./paths.js";
 import type { AcpProjectWorkspace } from "./project-workspace.js";
-import { mintHostWorkerId, type LaunchedWorker, type RedskilledWorkerSpec } from "./worker-launch.js";
+import { reserveHostWorkerId, type LaunchedWorker, type RedskilledWorkerSpec } from "./worker-launch.js";
 import {
   DEFAULT_WORKER_EVIDENCE_TTL_MS,
   workerEvidenceRoot,
@@ -287,7 +287,7 @@ export async function admitNativeAcpWorker(
 
 /** Preserve a pre-claim identity without letting it collide with a live birth. */
 export function resolveNativeWorkerId(requested: string | undefined, liveWorkerIds: readonly string[]): string {
-  const workerId = requested?.trim() || mintHostWorkerId(liveWorkerIds);
+  const workerId = requested?.trim() || reserveHostWorkerId(liveWorkerIds);
   if (liveWorkerIds.includes(workerId)) {
     throw new Error(`redskilled already holds live Worker ${JSON.stringify(workerId)}`);
   }

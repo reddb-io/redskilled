@@ -344,6 +344,10 @@ describe("one renderer, machine-wide", () => {
     "apps/redskilled/src/daemon/lifecycle.ts",
     "apps/redskilled/src/daemon/types.ts",
     "apps/redskilled/src/daemon/tunables.ts",
+    // ACP contract and transports forward typed payloads without rendering.
+    "apps/redskilled/src/acp-connection-methods.ts",
+    "apps/redskilled/src/acp-control-plane-contract.ts",
+    "apps/redskilled/src/acp-mobile-operator.ts",
     "apps/redskilled/src/protocol.ts",
     "apps/redskilled/src/client.ts",
     // Probe-only transport and its command adapter carry the typed payload to
@@ -373,7 +377,7 @@ describe("one renderer, machine-wide", () => {
         // The MODULE, not the op name: `"statusline-payload"` as a wire verb is
         // a string every reach table may hold; importing the module is what
         // gives a surface the structure to render from.
-        if (/statusline-payload\.js/.test(readFileSync(file, "utf8"))) offenders.push(rel);
+        if (/(?:from|import)\s+["'][^"']*statusline-payload\.js["']/.test(readFileSync(file, "utf8"))) offenders.push(rel);
       }
     }
 

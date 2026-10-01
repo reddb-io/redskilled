@@ -122,7 +122,7 @@ describe("redskilled resource incidents", () => {
   it("persists redacted incidents and enforces host retention", async () => {
     const root = mkdtempSync(join(tmpdir(), "redskilled-incidents-"));
     const store = createResourceIncidentStore({ root, maxIncidents: 2, maxHostBytes: 12_000, maxIncidentBytes: 8_000 });
-    const base = Date.parse("2026-08-13T00:00:00.000Z");
+    const base = Date.now() - 60_000;
     for (let i = 0; i < 3; i += 1) {
       const one = {
         schema: "red.redskilled.resource_incident.v1" as const,

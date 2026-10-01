@@ -9,7 +9,7 @@ import {
 } from "./event-lane.js";
 import type { RedskilledHostState, RedskilledWorkerView } from "./host-state.js";
 import { workerSpecFromLaunch, type RedskilledLaunchTemplate } from "./launch-template.js";
-import { mintHostWorkerId, RedskilledAdmissionError, type RedskilledWorkerSpec } from "./worker-launch.js";
+import { reserveHostWorkerId, RedskilledAdmissionError, type RedskilledWorkerSpec } from "./worker-launch.js";
 
 export const REDSKILLED_HOST_EVENT_PROJECT = "redskilled/host-events";
 
@@ -87,7 +87,7 @@ export function createRedskilledHostEventSinkRuntime(options: {
   const commandAvailable = options.declaration?.commandAvailable ?? executableOnPath;
 
   function fire(template: RedskilledLaunchTemplate, state: RedskilledHostState, kind: RedskilledPublicHostEventKind): void {
-    const workerId = mintHostWorkerId(options.liveWorkerIds());
+    const workerId = reserveHostWorkerId(options.liveWorkerIds());
     const base = workerSpecFromLaunch(
       template,
       { worker_id: workerId, slot: 0, workspace_path: options.declaration!.workspacePath },

@@ -26,7 +26,7 @@ import type {
 } from "@agentclientprotocol/sdk";
 
 import { randomBytes } from "node:crypto";
-import { mintHostWorkerId } from "./worker-launch.js";
+import { reserveHostWorkerId } from "./worker-launch.js";
 import { claimDemandTicket, type ClaimedDemandTicket } from "./ticket-claim.js";
 
 import { parkTerminalTurn } from "./demand-park.js";
@@ -429,7 +429,7 @@ export function createDemandTurnRunner(
     // the turn's own updates are the only liveness a native Worker ever emits.
     let born: ActiveWorkflowWorker | null = null;
     let heldClaim: ClaimedDemandTicket | undefined;
-    const workerId = request.workerId ?? mintHostWorkerId(deps.hostState().workers.map((worker) => worker.worker_id));
+    const workerId = request.workerId ?? reserveHostWorkerId(deps.hostState().workers.map((worker) => worker.worker_id));
     const notify: AgentConnection["client"]["notify"] = async (_method: string, params?: unknown) => {
       if (born == null || deps.pulse == null) return;
       const line = sessionUpdateLine(params);

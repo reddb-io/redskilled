@@ -14,7 +14,9 @@ therefore arm native merge intent based only on the implementing Worker's gate.
 
 ## Decision
 
-Both dispatch paths use the same claim election through the Project-bound
+The daemon reserves distinct monotonic Worker IDs before asynchronous
+preparation, even while the live Worker set has not changed. Both dispatch
+paths use the same claim election through the Project-bound
 GitHub gateway. Reads used to elect an owner bypass dated cache answers and
 paginate the comment thread. The unattended daemon wins before admission,
 marks the handoff preclaimed, and releases a won claim if admission fails.

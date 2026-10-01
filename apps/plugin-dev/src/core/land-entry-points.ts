@@ -25,12 +25,10 @@
  *
  * ## Why an entry point may enforce differently
  *
- * The five paths sit in four layers, and only the runtime layer can read a
- * project's Countersign lane. That is not an oversight to route around: a daemon
- * that read per-project Countersigns would hold the per-issue policy ADR 0144 keeps
- * out of it, and an engine that did would be a Worker body that knows what a
- * `.red/` is. {@link LandEntryPointEnforcement} names the three honest answers,
- * and each entry says which one it is and what pays for it.
+ * The project runtime and its durable merge custodian read project-owned
+ * authorization (ADR 0172). Engine and Worker callers hold an injected gate
+ * or delegate to that owner. {@link LandEntryPointEnforcement} records where
+ * each path obtains its authorization and what proves its refusal.
  */
 import { stripComments } from "./extinct-source-guard.js";
 
@@ -42,7 +40,7 @@ import { stripComments } from "./extinct-source-guard.js";
  * declaring it as such is what keeps the table total.
  */
 export type LandEntryPointEnforcement =
-  /** Reads the Countersign ledger itself; only the runtime layer can. */
+  /** Reads the Countersign ledger itself; the durable Project owner can. */
   | "ledger"
   /** Holds the gate as an injected port because its layer may not reach the lane. */
   | "port"
@@ -89,10 +87,8 @@ export interface LandEntryPoint {
 }
 
 /**
- * The five paths Spec #4129 names, plus the Worker land request that is the ACP
- * method's only caller. Six rows, because splitting the ACP path in two is what
- * lets each half state the truth: the Worker holds the ledger question, and the
- * daemon holds the head it was handed.
+ * The paths Spec #4129 names, with public ACP doors delegating to durable
+ * custody, which rechecks independent authorization after Worker handoff.
  */
 export const LAND_ENTRY_POINTS: readonly LandEntryPoint[] = [
   {
@@ -176,7 +172,7 @@ export const LAND_ENTRY_POINTS: readonly LandEntryPoint[] = [
     id: "github-merge-custodian",
     module: "apps/redskilled/src/github-custody.ts",
     entry: "createGithubCustodian",
-    enforcement: "local",
+    enforcement: "ledger",
     countersignSource: "the Project-owned durable Countersign ledger, checked against the observed and armed head on every pass. A missing or voided Countersign retains the PR for independent review and authorizes no native merge intent.",
     proof: "projectCustodyCountersign",
     test: "apps/redskilled/tests/github-custody-countersign.test.ts",

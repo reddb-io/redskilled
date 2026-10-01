@@ -64,14 +64,14 @@ function seriesFor(snapshot: RedskilledMetricsSnapshot, name: string): Redskille
 }
 
 /** Answer `_redskills/metrics` the way the composed control plane would. */
-function readMetrics(
+async function readMetrics(
   hostAdministration: boolean,
   snapshot: () => RedskilledMetricsSnapshot,
-): RedskilledMetricsSnapshot {
+): Promise<RedskilledMetricsSnapshot> {
   const domain = telemetryMethodDomain({ hostAdministration, snapshot });
   const binding = domain.bindings.find((entry) => entry.method === REDSKILLS_ACP_METHODS.metrics);
   if (binding == null) throw new Error("the telemetry domain binds no metrics method");
-  return binding.handle({ params: binding.params({}), client: undefined }) as RedskilledMetricsSnapshot;
+  return binding.handle({ params: binding.params({}), client: undefined }) as Promise<RedskilledMetricsSnapshot>;
 }
 
 describe("_redskills/metrics", () => {
@@ -86,7 +86,7 @@ describe("_redskills/metrics", () => {
       exitCode: 0,
     });
 
-    const answer = readMetrics(true, metrics.snapshot);
+    const answer = await readMetrics(true, metrics.snapshot);
     expect(seriesFor(answer, REDSKILLED_METRIC_NAMES.workerBirths)).toEqual([
       expect.objectContaining({ attributes: { project_label: "acme/widgets" }, value: 1 }),
     ]);
@@ -215,12 +215,12 @@ describe("_redskills/metrics", () => {
     expect(seriesFor(metrics.snapshot(), REDSKILLED_METRIC_NAMES.workerBirths)).toHaveLength(1);
   });
 
-  it("refuses a project-scoped connection, which never sees the capability either", () => {
+  it("refuses a project-scoped connection, which never sees the capability either", async () => {
     const metrics = createRedskilledMetrics({ clock: () => "2026-08-19T09:00:00.000Z" });
 
-    const refusal = (() => {
+    const refusal = await (async () => {
       try {
-        readMetrics(false, metrics.snapshot);
+        await readMetrics(false, metrics.snapshot);
         return null;
       } catch (caught) {
         return caught;
@@ -334,7 +334,7 @@ describe("the OTLP metrics exporter", () => {
     expect(delivered.contentType).toBe("application/json");
     expect(delivered.authorization).toBe("Bearer t");
     // The same series `_redskills/metrics` answers, in the encoding OTLP spells.
-    expect(delivered.document).toEqual(otlpMetricsRequest(readMetrics(true, metrics.snapshot)));
+    expect(delivered.document).toEqual(otlpMetricsRequest(await readMetrics(true, metrics.snapshot)));
   });
 
   it("shapes each counter as a cumulative monotonic sum with its attributes", () => {

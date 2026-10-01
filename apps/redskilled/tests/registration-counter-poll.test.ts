@@ -58,7 +58,7 @@ async function trackerStandingIn(): Promise<{
       res.end(JSON.stringify({ total_count: 4, items: [] }));
       return;
     } else if (url.searchParams.get("state") === "closed") {
-      body = [{ number: 20, closed_at: "2026-08-11T12:00:00.000Z" }];
+      body = [{ number: 20, closed_at: new Date().toISOString() }];
     } else if (url.searchParams.has("labels")) {
       body = [{ number: 10, labels: [{ name: "ready-for-agent" }] }];
     } else {
@@ -135,11 +135,11 @@ describe("the registration supplies the remote-counter poll", () => {
       fetched_at: expect.any(String),
     });
 
-    // One selector list plus the activity cycle's four reads. Payload reads
+    // One selector list plus the activity cycle's five reads (including trunk commits). Payload reads
     // remain cache-only, and every request used the one registration transport.
     daemon.statuslinePayload();
     daemon.statuslinePayload();
-    expect(tracker.requests).toHaveLength(5);
+    expect(tracker.requests).toHaveLength(6);
 
     // The next attended cycle refreshes only the open-Issue representation that
     // feeds the ready queue. Panorama counts remain last-known and retain their
@@ -147,7 +147,7 @@ describe("the registration supplies the remote-counter poll", () => {
     const panoramaAt = counters.merged_today.fetched_at;
     await daemon.pollRepositoryActivity();
     const refreshed = daemon.statuslinePayload().remote_counters!.projects[0]!.counters;
-    expect(tracker.requests).toHaveLength(6);
+    expect(tracker.requests).toHaveLength(7);
     expect(refreshed.ready_queue.fetched_at).not.toBeNull();
     expect(refreshed.merged_today.fetched_at).toBe(panoramaAt);
     expect(tracker.requests.every((request) => request.authorization === "token shared-host-token")).toBe(true);

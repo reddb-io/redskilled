@@ -32,13 +32,11 @@
 import {
   refuseLand,
   type LandSubject,
-  type LandCountersignDecision,
   type LandCountersignGate,
 } from "@reddb-io/shared/land-countersign.js";
 import {
   UNLABELED_VERIFY_REQUIREMENT,
   resolveVerifyRequirement,
-  type VerifyRequirement,
 } from "@reddb-io/shared/verify-labels.js";
 import type { Exec } from "./merge.js";
 import { resolveRemoteBranchTip, stablePatchId, staleHeadVerdict } from "./stale-head.js";

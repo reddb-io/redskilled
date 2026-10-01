@@ -3,7 +3,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { Readable, Writable } from "node:stream";
 import * as acpV1 from "@agentclientprotocol/sdk";
 import * as acpV2 from "@agentclientprotocol/sdk/experimental/v2";
@@ -79,7 +79,9 @@ describe("the maintained ACP adapters", () => {
     expect(client.updates.at(-1)).toMatchObject({ kind: "terminal", stopReason: "end_turn" });
 
     const firstBirth = await waitForEvent(runtime.paths.eventLanePath, "worker-birth");
-    expect(firstBirth.project_label).toMatch(/^local:[0-9a-f]{8}$/);
+    // Birth events carry the registration/queue label, while projectId keeps
+    // the local hash used for stable workspace identity.
+    expect(firstBirth.project_label).toBe(basename(runtime.root));
     expect(firstBirth.pid).toBeGreaterThan(0);
     const liveAfterTerminal = await client.hostState();
     expect(liveAfterTerminal.workers.map((worker) => worker.worker_id)).toContain(firstBirth.worker_id);
@@ -326,6 +328,8 @@ async function launchDaemon(): Promise<{
     XDG_RUNTIME_DIR: root,
     REDSKILLED_MACHINE_DIR: root,
     REDSKILLED_PLACEMENT: "off",
+    // The corpus awaits idle reaping inside its ten-second event deadline.
+    REDSKILLED_ACP_WORKER_IDLE_MS: "1000",
     REDSKILLED_SESSION: `test:${root}`,
   };
   const paths = resolveRedskilledPaths({ env, homeDir: root });

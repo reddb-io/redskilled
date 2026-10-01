@@ -25,8 +25,8 @@ const graph: WorkspaceGraph = {
 describe("castle validation cone", () => {
   it("expands package-scoped diffs through reverse-dependent BFS only", () => {
     expect(expandReverseDependencyCone(["packages/core"], graph)).toEqual([
-      "apps/plugin-dev",
       "apps/docs",
+      "apps/plugin-dev",
       "packages/core",
     ]);
   });
@@ -35,7 +35,7 @@ describe("castle validation cone", () => {
     expect(computeValidationScope(["packages/worker/src/engine/gate-executor.ts"], layout, graph)).toEqual({
       type: "cone",
       triggerPackages: ["packages/worker"],
-      packages: ["apps/plugin-dev", "apps/docs", "packages/worker"],
+      packages: ["apps/docs", "apps/plugin-dev", "packages/worker"],
     });
 
     expect(computeValidationScope(["packages/core/src/index.ts"], layout, graph).type).toBe("cone");
