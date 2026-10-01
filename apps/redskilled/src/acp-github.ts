@@ -368,7 +368,7 @@ export function githubCustodyHandoffParams(value: unknown): GithubCustodyHandoff
   }
   const params = value as Record<string, unknown>;
   const expected = ["pull_request", "owner_ticket", "branch", "base"];
-  if (Object.keys(params).length !== expected.length || expected.some((key) => !(key in params))) {
+  if (expected.some((key) => !(key in params)) || Object.keys(params).some((key) => ![...expected, "armed_head"].includes(key))) {
     throw new RedskilledGithubAuthorityError(
       "a Project merge custody handoff cannot name a Project, credential profile, remote, or host operation",
     );

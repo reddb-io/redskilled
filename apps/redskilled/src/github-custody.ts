@@ -1,3 +1,5 @@
+import { projectCustodyCountersign } from "./custody-countersign.js";
+import { refuseLand, type LandCountersignDecision } from "@reddb-io/shared/land-countersign.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
@@ -42,11 +44,13 @@ export interface RedskilledGithubCustodyUpstreamInput {
   readonly project: RedskilledGithubProjectAuthority;
   readonly credential: RedskilledGithubCredential;
   readonly pullRequest: number;
+  readonly expectedHead?: string;
 }
 
 export interface RedskilledGithubCustodyUpstream {
   observe(input: RedskilledGithubCustodyUpstreamInput): Promise<RedskilledGithubCustodyForgeView>;
   arm(input: RedskilledGithubCustodyUpstreamInput): Promise<RedskilledGithubCustodyForgeView>;
+  disarm?(input: RedskilledGithubCustodyUpstreamInput): Promise<void>;
 }
 
 export interface RedskilledGithubCustodyFault {
@@ -74,7 +78,9 @@ export interface RedskilledGithubCustodyRecord extends RedskilledGithubCustodyHa
     | "retry-forge"
     | "repair-custodian"
     | "report-moved-head"
+    | "await-countersign"
     | "none";
+  readonly countersign_refusal?: string | null;
   readonly terminal_outcome: "merged" | "closed" | null;
   readonly fault?: RedskilledGithubCustodyFault;
 }
@@ -116,6 +122,7 @@ export interface CreateGithubCustodianOptions {
   readonly clock: () => string;
   readonly tickMs: number;
   readonly inertMs: number;
+  readonly countersignGate?: (input: RedskilledGithubCustodyUpstreamInput, headSha: string) => Promise<LandCountersignDecision>;
 }
 
 /**
@@ -221,6 +228,7 @@ export function createGithubCustodian(options: CreateGithubCustodianOptions): Gi
         project: execution.project,
         credential: execution.credential,
         pullRequest: ticking.pull_request,
+        ...(ticking.armed_head == null ? {} : { expectedHead: ticking.armed_head }),
       };
       let view = validateForgeView(await options.upstream.observe(input));
       const open = view.forge_state !== "merged" && view.forge_state !== "closed";
@@ -230,7 +238,20 @@ export function createGithubCustodian(options: CreateGithubCustodianOptions): Gi
       // head may be forced back or a new landing may restate it.
       const movedHead = open && ticking.armed_head != null && view.head_sha != null &&
         view.head_sha !== ticking.armed_head;
-      if (open && !movedHead && !view.native_intent) {
+      let refusal: string | undefined;
+      if (open && !movedHead) {
+        const subject = { kind: "head" as const, headSha: view.head_sha ?? "unknown" };
+        const judged = ticking.armed_head == null || view.head_sha == null
+          ? refuseLand("unresolvable-head", subject, "restate custody with the validated commit")
+          : await (options.countersignGate ?? projectCustodyCountersign)(input, view.head_sha);
+        if (!judged.allowed) refusal = judged.message;
+      }
+      if (open && (movedHead || refusal != null) && view.native_intent) {
+        if (options.upstream.disarm == null) throw new Error("custody cannot revoke an unverified native merge intent");
+        await options.upstream.disarm(input);
+        view = { ...view, native_intent: false };
+      }
+      if (open && !movedHead && refusal == null && !view.native_intent) {
         view = validateForgeView(await options.upstream.arm(input));
       }
       const terminal = view.forge_state === "merged" || view.forge_state === "closed";
@@ -238,7 +259,8 @@ export function createGithubCustodian(options: CreateGithubCustodianOptions): Gi
         ...record,
         state: terminal ? "terminal" : "active",
         last_forge_state: view.forge_state,
-        next_action: terminal ? "none" : movedHead ? "report-moved-head" : "await-forge",
+        next_action: terminal ? "none" : movedHead ? "report-moved-head" : refusal != null ? "await-countersign" : "await-forge",
+        countersign_refusal: refusal ?? null,
         terminal_outcome: view.forge_state === "merged"
           ? "merged"
           : view.forge_state === "closed" ? "closed" : null,
@@ -472,6 +494,7 @@ function parseRecord(value: unknown): RedskilledGithubCustodyRecord {
     handed_off_at: scalar(record.handed_off_at),
     state,
     last_tick_at: record.last_tick_at === null ? null : scalar(record.last_tick_at),
+    ...(record.countersign_refusal == null ? {} : { countersign_refusal: scalar(record.countersign_refusal) }),
     last_forge_state: forge,
     next_action: nextAction(record.next_action),
     terminal_outcome: terminal,
@@ -487,7 +510,7 @@ function scalar(value: unknown): string {
 
 function nextAction(value: unknown): RedskilledGithubCustodyRecord["next_action"] {
   if (
-    ["observe-forge", "await-forge", "retry-forge", "repair-custodian", "report-moved-head", "none"]
+    ["observe-forge", "await-forge", "retry-forge", "repair-custodian", "report-moved-head", "await-countersign", "none"]
       .includes(String(value))
   ) {
     return value as RedskilledGithubCustodyRecord["next_action"];

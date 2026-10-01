@@ -60,7 +60,7 @@ export function flatConfigValue(text: string, dottedKey: string): string | undef
     const key = line.slice(0, colon).trim();
     if (!key) continue;
     const value = line.slice(colon + 1).trim();
-    while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop();
+    while (stack.length && stack[stack.length - 1]!.indent >= indent) stack.pop();
     stack.push({ indent, key });
     if (value) {
       const path = stack.map((s) => s.key).join(".");

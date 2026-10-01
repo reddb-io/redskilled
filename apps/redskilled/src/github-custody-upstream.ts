@@ -33,6 +33,26 @@ export function createRedskilledGithubCustodyUpstream(
 
   return {
     observe,
+    async disarm(input) {
+      const repository = input.project.projectLabel.split("/").map(encodeURIComponent).join("/");
+      const pull = await fetchImpl(`${origin}/repos/${repository}/pulls/${input.pullRequest}`, {
+        method: "GET", headers: githubHeaders(input.credential.secret),
+      });
+      if (!pull.ok) throw new Error(`GitHub custody disarm lookup failed with HTTP ${pull.status}`);
+      const body = await pull.json() as { node_id?: unknown };
+      if (typeof body.node_id !== "string" || body.node_id === "") throw new Error("GitHub custody cannot revoke an intent without a node identity");
+      const response = await fetchImpl(graphqlEndpoint, {
+        method: "POST",
+        headers: { ...githubHeaders(input.credential.secret), "content-type": "application/json" },
+        body: JSON.stringify({
+          query: "mutation($pullRequestId:ID!){disablePullRequestAutoMerge(input:{pullRequestId:$pullRequestId}){pullRequest{id}}}",
+          variables: { pullRequestId: body.node_id },
+        }),
+      });
+      if (!response.ok) throw new Error(`GitHub custody disarm failed with HTTP ${response.status}`);
+      const answer = await response.json() as { errors?: unknown };
+      if (Array.isArray(answer.errors) && answer.errors.length > 0) throw new Error("GitHub refused to revoke the native merge intent");
+    },
     async arm(input) {
       const repository = input.project.projectLabel.split("/").map(encodeURIComponent).join("/");
       const pull = await fetchImpl(`${origin}/repos/${repository}/pulls/${input.pullRequest}`, {
@@ -43,6 +63,9 @@ export function createRedskilledGithubCustodyUpstream(
       const body = await pull.json() as Record<string, unknown>;
       if (body.merged === true || body.merged_at != null) {
         return { forge_state: "merged", native_intent: false, ...headShaOf(body) };
+      }
+      if (input.expectedHead == null || headShaOf(body).head_sha !== input.expectedHead) {
+        throw new Error("GitHub custody refuses to arm a head different from the countersigned commit");
       }
       const nodeId = typeof body.node_id === "string" ? body.node_id : "";
       if (nodeId === "") throw new Error("GitHub custody cannot arm a pull request without a node identity");

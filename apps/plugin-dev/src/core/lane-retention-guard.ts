@@ -93,7 +93,7 @@ export const LANE_WRITER_ENFORCEMENT: readonly LaneWriterEnforcement[] = [
   },
   {
     lane: "countersigns",
-    writers: ["apps/plugin-dev/src/core/countersign-ledger.ts"],
+    writers: ["packages/shared/countersign-ledger.ts"],
     why: "the append-only merge authorization is byte-bounded as each verifier countersigns, so an audit trail cannot outgrow the durable state tier",
   },
   {

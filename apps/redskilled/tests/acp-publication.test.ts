@@ -124,7 +124,15 @@ describe("`_redskills/publish` — the daemon pushes the Worker's branch", () =>
   it("puts the commit on the remote from a Worktree the request never names", async () => {
     const host = await hostFixture("afk/4019-publication");
     const publish = bindAcpWorkerPublish({
-      gateway: registration(host.root),
+      gateway: registration(host.root, {
+        writeUpstream: createRedskilledGithubWriteUpstream({
+          pushRepository: async ({ project, write }) => {
+            if (write.kind !== "repository-push") throw new Error("fixture accepts only repository pushes");
+            git(project.workspacePath, "push", "--quiet", "--", host.remote, `${write.sha}:${write.ref}`);
+            return {};
+          },
+        }),
+      }),
       held: () => host.worker,
     });
 

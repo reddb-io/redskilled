@@ -5,13 +5,6 @@
 // canonical repository under the personal profile, provisions its clean
 // workspace idempotently, validates and wins the Ticket claim, then and only
 // then admits the Worker through the ordinary unattended turn.
-import { randomUUID } from "node:crypto";
-import {
-  acquireClaim,
-  renderClaimComment,
-  type ClaimGh,
-  type RawClaimComment,
-} from "@reddb-io/worker/engine";
 import type {
   MobileTicketDispatchAnswer,
   MobileTicketDispatchParams,
@@ -21,7 +14,6 @@ import type { DemandTurnRequest, DemandTurnResult } from "./acp-demand-turn.js";
 import type {
   RedskilledGithubCredential,
   RedskilledGithubGatewayRegistration,
-  RedskilledGithubProjectReader,
 } from "./github-gateway.js";
 import type { RedskilledHostState } from "./host-state.js";
 import type { RedskilledPaths } from "./paths.js";
@@ -31,6 +23,7 @@ import {
   type AcpProjectWorkspace,
 } from "./project-workspace.js";
 import { mintHostWorkerId } from "./worker-launch.js";
+import { claimTicketOwnership } from "./ticket-claim.js";
 
 interface GithubIssueReference {
   readonly owner: string;
@@ -104,11 +97,7 @@ export function createMobileTicketDispatcher(options: CreateMobileTicketDispatch
     }).then((answer) => answer.value), reference.ticket);
 
     const workerId = mintHostWorkerId(options.hostState().workers.map((worker) => worker.worker_id));
-    const claim = claimAdapter(reader, repository.fullName, workerId);
-    const decision = await acquireClaim(claim, { worker: workerId }, reference.ticket);
-    if (decision.verdict !== "won") {
-      throw new Error(`Ticket #${reference.ticket} is already claimed by ${decision.winner ?? "another Worker"}`);
-    }
+    const claim = await claimTicketOwnership(reader, repository.fullName, reference.ticket, workerId);
 
     let admitted = false;
     let resolveBorn!: (workerId: string) => void;
@@ -138,10 +127,7 @@ export function createMobileTicketDispatcher(options: CreateMobileTicketDispatch
     });
     void turn.catch(async (error) => {
       if (!admitted) {
-        await claim.concede(
-          reference.ticket,
-          renderClaimComment({ worker: workerId }, "concede", "released"),
-        ).catch(() => undefined);
+        await claim.release().catch(() => undefined);
         rejectBorn(error);
       }
       options.onTurnError?.(error);
@@ -206,43 +192,6 @@ function ticketFrom(value: unknown, number: number): GithubTicket {
   const blocker = labels.find((label) => label.startsWith("blocked:") || label === "ready-for-human");
   if (blocker != null) throw new Error(`Ticket #${number} is blocked by ${blocker}`);
   return { title, labels };
-}
-
-function claimAdapter(reader: RedskilledGithubProjectReader, repository: string, workerId: string): ClaimGh {
-  let sequence = 0;
-  const publish = async (issue: number, body: string): Promise<unknown> => {
-    sequence += 1;
-    return await reader.write({
-      idempotency_key: `mobile:${workerId}:${issue}:${sequence}:${randomUUID()}`.slice(0, 128),
-      write: { kind: "issue-publication", issue, body },
-    }).then((answer) => answer.value);
-  };
-  return {
-    async postClaim(issue, body) {
-      const value = asRecord(await publish(issue, body), "GitHub published no claim receipt");
-      const id = Number(value.id);
-      if (!Number.isSafeInteger(id) || id <= 0) throw new Error("GitHub published no claim comment id");
-      return id;
-    },
-    async listClaims(issue): Promise<RawClaimComment[]> {
-      const value = await reader.read({
-        kind: "rest",
-        path: `repos/${repository}/issues/${issue}/comments?per_page=100`,
-      }).then((answer) => answer.value);
-      if (!Array.isArray(value)) throw new Error("GitHub returned no claim comment list");
-      return value.flatMap((entry) => {
-        if (entry == null || typeof entry !== "object") return [];
-        const record = entry as Record<string, unknown>;
-        const id = Number(record.id);
-        return Number.isSafeInteger(id) && id > 0 && typeof record.body === "string"
-          ? [{ id, body: record.body }]
-          : [];
-      });
-    },
-    async concede(issue, body) {
-      await publish(issue, body);
-    },
-  };
 }
 
 function asRecord(value: unknown, detail: string): Record<string, unknown> {

@@ -26,6 +26,8 @@ import type {
 } from "@agentclientprotocol/sdk";
 
 import { randomBytes } from "node:crypto";
+import { mintHostWorkerId } from "./worker-launch.js";
+import { claimDemandTicket, type ClaimedDemandTicket } from "./ticket-claim.js";
 
 import { parkTerminalTurn } from "./demand-park.js";
 import { demandBriefVerdict } from "./demand-birth-brief.js";
@@ -60,6 +62,7 @@ export interface DemandTurnDeps {
   readonly hostState: () => { readonly workers: readonly { readonly worker_id: string }[] };
   readonly sessionJournal: AcpSessionJournal;
   /** Test seam over the Ticket-body read; production reads the gateway. */
+  readonly claimTicket?: (project: AcpProjectWorkspace, ticket: number, workerId: string) => Promise<ClaimedDemandTicket>;
   readonly ticketBody?: (project: AcpProjectWorkspace, issue: number) => Promise<string | null>;
   readonly githubGateway?: RedskilledGithubGatewayRegistration;
   readonly evidenceRoot?: string;
@@ -425,6 +428,8 @@ export function createDemandTurnRunner(
     // Nobody is listening, so a notification is a record — and a pulse (#4181):
     // the turn's own updates are the only liveness a native Worker ever emits.
     let born: ActiveWorkflowWorker | null = null;
+    let heldClaim: ClaimedDemandTicket | undefined;
+    const workerId = request.workerId ?? mintHostWorkerId(deps.hostState().workers.map((worker) => worker.worker_id));
     const notify: AgentConnection["client"]["notify"] = async (_method: string, params?: unknown) => {
       if (born == null || deps.pulse == null) return;
       const line = sessionUpdateLine(params);
@@ -468,6 +473,13 @@ export function createDemandTurnRunner(
             : briefedTicket;
         }
       }
+      if (briefedTicket != null && typeof ticketNumber === "number" && briefedTicket.preclaimed !== true) {
+        if (!Number.isSafeInteger(ticketNumber) || ticketNumber <= 0) throw new Error("Ticket admission requires a positive Issue number");
+        heldClaim = await (deps.claimTicket == null
+          ? claimDemandTicket(deps.githubGateway, request.project, ticketNumber, workerId)
+          : deps.claimTicket(request.project, ticketNumber, workerId));
+        briefedTicket = { ...briefedTicket, worker_id: workerId, preclaimed: true };
+      }
       const { worker, response } = await requestWorkflowTurn(
         sessionId,
         active,
@@ -490,7 +502,7 @@ export function createDemandTurnRunner(
           notify,
           permission: async (permission) => refusePermission(permission),
           replacement,
-          ...(request.workerId == null ? {} : { workerId: request.workerId }),
+          workerId,
         }).then((worker) => {
           born = worker;
           request.onBorn?.(worker.workerId);
@@ -516,6 +528,7 @@ export function createDemandTurnRunner(
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       record("demand-turn-refused", active.get(sessionId), detail);
+      if (heldClaim != null && born == null) await heldClaim.release().catch(() => undefined);
       const held = active.get(sessionId);
       if (held != null) cleanupWorkflowWorker(sessionId, held, active, "demand-turn-refused");
       throw error;

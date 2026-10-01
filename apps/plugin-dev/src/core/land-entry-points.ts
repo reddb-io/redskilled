@@ -154,10 +154,10 @@ export const LAND_ENTRY_POINTS: readonly LandEntryPoint[] = [
     id: "acp-custody-handoff-method",
     module: "apps/redskilled/src/acp-github.ts",
     entry: "bindAcpProjectGithubCustodyHandoff",
-    enforcement: "unenforced",
+    enforcement: "delegated",
+    delegatesTo: "github-merge-custodian",
     countersignSource:
-      "none. `githubCustodyHandoffParams` accepts EXACTLY `{pull_request, owner_ticket, branch, base}` and refuses any other key, so the armed head #4130 threads through the in-process door cannot travel through this one — two doors to the same custodian with different contracts.",
-    gap: "the public custody-handoff method carries no head and consults no ledger; closing it means the handoff wire carrying `armed_head` here too, which is a protocol change this ticket does not make.",
+      "the optional armed_head travels through the public handoff. Legacy records remain readable but cannot arm a merge until the validated head is restated and the durable custodian finds its exact-head Countersign.",
     test: "apps/plugin-dev/tests/land-entry-points-guard.test.ts",
     why: "the public ACP method by which a Project hands an already-open pull request's merge to custody.",
   },
@@ -166,11 +166,21 @@ export const LAND_ENTRY_POINTS: readonly LandEntryPoint[] = [
     module: "apps/redskilled/src/acp-publication.ts",
     entry: "bindAcpWorkerLand",
     enforcement: "delegated",
-    delegatesTo: "worker-land-request",
+    delegatesTo: "github-merge-custodian",
     countersignSource:
-      "the `commit` field the request carries, validated as one full object name and pinned as the custody record's `armed_head` (#4130) so a head that moves after arming is reported rather than merged; the ledger question belongs to the caller, because a daemon that read per-project Countersigns would hold the per-issue policy ADR 0144 keeps out of it.",
+      "the `commit` field the request carries, validated as one full object name and pinned as the custody record's `armed_head` (#4130) so a head that moves after arming is reported rather than merged; the durable custodian checks the project-owned Countersign ledger again before arming and revokes an intent whose approval no longer stands.",
     test: "apps/redskilled/tests/github-custody-armed-head.test.ts",
     why: "the daemon method that opens the pull request and hands its merge to custody.",
+  },
+  {
+    id: "github-merge-custodian",
+    module: "apps/redskilled/src/github-custody.ts",
+    entry: "createGithubCustodian",
+    enforcement: "local",
+    countersignSource: "the Project-owned durable Countersign ledger, checked against the observed and armed head on every pass. A missing or voided Countersign retains the PR for independent review and authorizes no native merge intent.",
+    proof: "projectCustodyCountersign",
+    test: "apps/redskilled/tests/github-custody-countersign.test.ts",
+    why: "the durable owner of native merge intent after a Worker releases its workspace and host slot.",
   },
 ];
 

@@ -50,6 +50,7 @@ import {
 import {
   createGithubCustodian,
   type GithubCustodian,
+  type CreateGithubCustodianOptions,
   type RedskilledGithubCustodyHandoff,
   type RedskilledGithubCustodyRecord,
   type RedskilledGithubCustodyStatus,
@@ -160,6 +161,8 @@ export interface RedskilledGithubReadAnswer {
 
 export interface RedskilledGithubProjectReader {
   read(request: RedskilledGithubRead): Promise<RedskilledGithubReadAnswer>;
+  /** Host-side elections bypass dated cache answers; ordinary observations still coalesce. */
+  readLive?(request: RedskilledGithubRead): Promise<RedskilledGithubReadAnswer>;
   write(request: RedskilledGithubWriteRequest): Promise<RedskilledGithubWriteAnswer>;
   /** Retry this Project's durable pending writes after a daemon replacement. */
   resumeWrites(): Promise<readonly RedskilledGithubWriteAnswer[]>;
@@ -222,6 +225,7 @@ export interface CreateRedskilledGithubGatewayOptions {
   /** Durable host-state snapshot for merge obligations accepted by this gateway. */
   readonly custodyPath?: string;
   readonly custodyUpstream?: RedskilledGithubCustodyUpstream;
+  readonly custodyCountersignGate?: CreateGithubCustodianOptions["countersignGate"];
   readonly custodyTickMs?: number;
   readonly custodyInertMs?: number;
   readonly clock?: () => string;
@@ -419,6 +423,7 @@ export function createRedskilledGithubGateway(
     : createGithubCustodian({
         path: options.custodyPath,
         upstream: options.custodyUpstream,
+        ...(options.custodyCountersignGate == null ? {} : { countersignGate: options.custodyCountersignGate }),
         clock,
         tickMs: Math.max(1, options.custodyTickMs ?? refreshMs),
         inertMs: Math.max(1, options.custodyInertMs ?? Math.max(refreshMs * 3, 60_000)),
@@ -472,6 +477,20 @@ export function createRedskilledGithubGateway(
 
           const pending = inFlight.get(key);
           if (pending != null) return pending;
+          let state = states.get(key);
+          if (state == null) {
+            state = { key, scope, project, credential, read };
+            states.set(key, state);
+            trimStates();
+          }
+          return refreshState(state);
+        },
+        async readLive(request) {
+          const read = validateRead(project, request);
+          const key = cacheKey(project, read);
+          // A refresh begun before the caller's write cannot elect its owner.
+          // Let that observation finish, then start a post-write observation.
+          await inFlight.get(key)?.catch(() => undefined);
           let state = states.get(key);
           if (state == null) {
             state = { key, scope, project, credential, read };
