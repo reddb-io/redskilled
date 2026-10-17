@@ -205,15 +205,44 @@ describe("the brief carries the Ticket's own words (#4243)", () => {
     expect(sent._meta.redskills.ticket.handoff).toContain("The audit runs at drain end.");
   });
 
-  it("a body the gateway cannot serve degrades the brief, never the turn", async () => {
+  it("includes a parent Spec referenced by the Ticket before admitting a Worker", async () => {
     const worker = workerStub({ stopReason: "end_turn" });
-    const { run } = runner(async () => worker, [], [], async () => null);
+    const read = vi.fn(async (_project: unknown, issue: number) => issue === 4171
+      ? "## Parent\n\nSpec #472\n\n## Acceptance criteria\n\nFollow Q19."
+      : issue === 472 ? "## Q19\n\nThe approved identity strategy.\n\n## H27\n\nPreserve admission." : null);
+    const { run } = runner(async () => worker, [], [], read);
 
-    const result = await run({ project, prompt: "Implement issue #4171", workItem: "4171", ticket });
+    await run({ project, prompt: "Implement issue #4171", workItem: "4171", ticket });
 
-    expect(result.workerId).toBe("W1");
-    const sent = worker.prompted.mock.calls[0]?.[1] as { prompt: { text: string }[] };
-    expect(sent.prompt[0]!.text).toBe("Implement issue #4171");
+    expect(read.mock.calls.map((call) => call[1])).toEqual([4171, 472]);
+    const sent = worker.prompted.mock.calls[0]?.[1] as {
+      prompt: { text: string }[];
+      _meta: { redskills: { ticket: { handoff: string } } };
+    };
+    expect(sent.prompt[0]!.text).toContain("## Parent Spec #472");
+    expect(sent.prompt[0]!.text).toContain("The approved identity strategy.");
+    expect(sent._meta.redskills.ticket.handoff).toContain("Preserve admission.");
+  });
+
+  it("refuses admission when a referenced parent Spec cannot be read", async () => {
+    const admit = vi.fn(async () => workerStub({ stopReason: "end_turn" }));
+    const { run } = runner(admit, [], [], async (_project, issue) => issue === 4171
+      ? "## Parent\n\nSpec #472\n\n## Acceptance criteria\n\nFollow Q19."
+      : null);
+
+    await expect(run({ project, prompt: "Implement issue #4171", workItem: "4171", ticket }))
+      .rejects.toThrow(/Spec #472 body is unavailable/);
+    expect(admit).not.toHaveBeenCalled();
+  });
+
+  it("refuses admission when the Ticket body cannot be read", async () => {
+    const admit = vi.fn(async () => workerStub({ stopReason: "end_turn" }));
+    const { run, records } = runner(admit, [], [], async () => null);
+
+    await expect(run({ project, prompt: "Implement issue #4171", workItem: "4171", ticket }))
+      .rejects.toThrow(/Ticket #4171 body is unavailable/);
+    expect(admit).not.toHaveBeenCalled();
+    expect(records).toEqual([expect.objectContaining({ event: "demand-turn-refused" })]);
   });
 
   it("states the cut when a Ticket body exceeds the brief's bound", () => {
@@ -225,17 +254,18 @@ describe("the brief carries the Ticket's own words (#4243)", () => {
 
 describe("what one birth owes its Worker", () => {
   it("says nothing for a project that stated no prompt — it births as it always did", () => {
-    expect(demandTurnForBirth(undefined, { workspace_path: "/tmp/w", index: 0 }, "W1")).toBeNull();
-    expect(demandTurnForBirth({}, { workspace_path: "/tmp/w", index: 0 }, "W1")).toBeNull();
+    expect(demandTurnForBirth(undefined, { project_label: "a/b", workspace_path: "/tmp/w", index: 0 }, "W1")).toBeNull();
+    expect(demandTurnForBirth({}, { project_label: "a/b", workspace_path: "/tmp/w", index: 0 }, "W1")).toBeNull();
   });
 
   it("writes this birth's facts into the project's prompt", () => {
     expect(demandTurnForBirth(
       { prompt: "claim {{work_item}} as {{worker_id}} in {{workspace_path}}" },
-      { workspace_path: "/tmp/w", index: 2, work_item: "4100" },
+      { project_label: "a/b", workspace_path: "/tmp/w", index: 2, work_item: "4100" },
       "W7",
     )).toEqual({
       workspacePath: "/tmp/w",
+      projectLabel: "a/b",
       prompt: "claim 4100 as W7 in /tmp/w",
       workItem: "4100",
     });
@@ -244,7 +274,7 @@ describe("what one birth owes its Worker", () => {
   it("refuses a prompt naming a fact this birth does not have, before anything is spawned", () => {
     expect(() => demandTurnForBirth(
       { prompt: "claim {{work_item}}" },
-      { workspace_path: "/tmp/w", index: 0 },
+      { project_label: "a/b", workspace_path: "/tmp/w", index: 0 },
       "W1",
     )).toThrow(/work_item/);
   });
@@ -253,7 +283,7 @@ describe("what one birth owes its Worker", () => {
 describe("the birth briefs its Worker with a Ticket", () => {
   const briefing = { id: "4118", title: "worker-container invokes a deleted binary", labels: ["bug", "ready-for-agent"] };
   const registration = { prompt: "Work issue #{{work_item}} to a merged PR", trunk: { branch: "main" } };
-  const birth = { workspace_path: "/tmp/w", index: 0, work_item: "4118" };
+  const birth = { project_label: "a/b", workspace_path: "/tmp/w", index: 0, work_item: "4118" };
 
   it("states the handoff the Worker's Ticket loop is entered through", () => {
     const turn = demandTurnForBirth(registration, birth, "W7", briefing);

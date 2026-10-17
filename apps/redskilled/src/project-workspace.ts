@@ -9,8 +9,8 @@
  */
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, mkdtemp, readFile, rename, rm, stat } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import {
   repoSlugFromRemoteUrl,
   resolveProjectIdentity,
@@ -60,9 +60,12 @@ export async function resolveAcpProjectIdentity(
   cwd: string,
   options: ResolveAcpProjectIdentityOptions = {},
 ): Promise<AcpProjectIdentity> {
-  const checkoutRoot = await gitOutput(cwd, ["rev-parse", "--show-toplevel"]) ?? cwd;
-  const gitCommonDir = await gitOutput(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
-  const remoteUrl = await gitOutput(cwd, ["remote", "get-url", "origin"]);
+  // Git itself can fail to read refs on an unhealthy checkout. The origin in
+  // its config is enough to reuse a previously verified numeric GitHub id.
+  const configured = await readCheckoutOrigin(cwd);
+  const checkoutRoot = configured?.checkoutRoot ?? await gitOutput(cwd, ["rev-parse", "--show-toplevel"]) ?? cwd;
+  const gitCommonDir = configured?.gitCommonDir ?? await gitOutput(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+  const remoteUrl = configured?.remoteUrl ?? await gitOutput(cwd, ["remote", "get-url", "origin"]);
   const remoteSlug = repoSlugFromRemoteUrl(remoteUrl);
   // The cache answers first, with no network: one successful resolution is
   // authoritative forever (GitHub ids survive renames), so a rate-limited or
@@ -114,6 +117,69 @@ export async function resolveAcpProjectIdentity(
     checkoutRoot,
     ...(remoteUrl == null ? {} : { remoteUrl }),
   };
+}
+
+/** Read the origin without asking Git to traverse refs or a damaged index. */
+async function readCheckoutOrigin(cwd: string): Promise<{
+  checkoutRoot: string;
+  gitCommonDir: string;
+  remoteUrl: string;
+} | null> {
+  let directory = resolve(cwd);
+  while (true) {
+    const dotGit = join(directory, ".git");
+    const marker = await stat(dotGit).catch(() => null);
+    if (marker != null) {
+      let commonDir = dotGit;
+      if (marker.isFile()) {
+        const gitFile = await readFile(dotGit, "utf8").catch(() => "");
+        const gitDirText = gitFile.match(/^gitdir:\s*(.+)\s*$/im)?.[1]?.trim();
+        if (gitDirText == null) return null;
+        const gitDir = resolve(directory, gitDirText);
+        const relativeCommon = await readFile(join(gitDir, "commondir"), "utf8").catch(() => "");
+        commonDir = relativeCommon.trim() === "" ? gitDir : resolve(gitDir, relativeCommon.trim());
+      }
+      const config = await readFile(join(commonDir, "config"), "utf8").catch(() => "");
+      let origin = false;
+      for (const line of config.split(/\r?\n/)) {
+        if (/^\s*\[/.test(line)) origin = /^\s*\[remote\s+"origin"\s*\]/i.test(line);
+        else if (origin) {
+          const url = line.match(/^\s*url\s*=\s*(\S.*?)\s*$/i)?.[1];
+          if (url != null) return { checkoutRoot: directory, gitCommonDir: commonDir, remoteUrl: url };
+        }
+      }
+      return null;
+    }
+    const parent = dirname(directory);
+    if (parent === directory) return null;
+    directory = parent;
+  }
+}
+
+/** Keep a registered queue on its canonical identity even if its checkout is unavailable. */
+export async function resolveRegisteredDemandIdentity(
+  cwd: string,
+  projectLabel: string,
+  options: ResolveAcpProjectIdentityOptions = {},
+): Promise<AcpProjectIdentity> {
+  const cached = await options.identityCache?.read(projectLabel);
+  if (cached != null) {
+    if (cached.full_name.toLowerCase() !== projectLabel.toLowerCase()) {
+      throw new Error(`the registered Project ${projectLabel} has no matching canonical GitHub identity`);
+    }
+    return {
+      projectId: `github:${cached.github_id}`,
+      projectLabel: cached.full_name,
+      checkoutRoot: cwd,
+    };
+  }
+
+  const resolved = await resolveAcpProjectIdentity(cwd, options);
+  if (!resolved.projectId.startsWith("github:") ||
+    resolved.projectLabel.toLowerCase() !== projectLabel.toLowerCase()) {
+    throw new Error(`the registered Project ${projectLabel} has no matching canonical GitHub identity`);
+  }
+  return resolved;
 }
 
 /** Materialize (or reuse) the one clean execution workspace for a Project. */

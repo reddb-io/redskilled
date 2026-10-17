@@ -50,7 +50,7 @@ describe("the registered runner reaches the born Worker", () => {
         trunk: { branch: "main" },
         argv: ["npx", "acp-worker", "--child-agent", "codex"],
       },
-      { workspace_path: "/tmp/w", index: 0, work_item: "4153" },
+      { project_label: "a/b", workspace_path: "/tmp/w", index: 0, work_item: "4153" },
       "VStest04",
       { id: "4153", title: "a ticket", labels: [] },
     );

@@ -152,22 +152,22 @@ async function servedByProjectReader<T>(
  * The unattended posture forbids the inner agent GitHub access (#4227), so a
  * brief that named only number+title made the agent implement blind — the
  * first autonomous landed shipped a guess (#4243). The daemon holds the
- * credential; it reads the body and hands it over. `null` on any failure:
- * a brief without a body is degraded, never fatal.
+ * credential; it reads the body and hands it over. A failed or empty read must
+ * stop admission: the Worker cannot satisfy the brief contract without the
+ * Ticket's acceptance criteria.
  */
 export async function readProjectTicketBody(
   gateway: RedskilledGithubGatewayRegistration | undefined,
   project: AcpProjectWorkspace,
   issue: number,
-): Promise<string | null> {
-  try {
-    const answer = await servedByProjectReader(gateway, project, undefined, (reader) =>
-      reader.read({ kind: "rest", path: `repos/${project.projectLabel}/issues/${issue}` }));
-    const body = (answer as { value?: { body?: unknown } } | null)?.value?.body;
-    return typeof body === "string" && body.trim() !== "" ? body : null;
-  } catch {
-    return null;
+): Promise<string> {
+  const answer = await servedByProjectReader(gateway, project, undefined, (reader) =>
+    reader.read({ kind: "rest", path: `issues/${issue}` }));
+  const body = (answer as { value?: { body?: unknown } } | null)?.value?.body;
+  if (typeof body !== "string" || body.trim() === "") {
+    throw new Error(`Ticket #${issue} has no readable body for the unattended brief`);
   }
+  return body;
 }
 
 /** Bind one ACP connection's Project authority to the daemon-owned gateway. */

@@ -27,6 +27,7 @@ export interface PublicSession {
 
 export interface DemandBirthTurn {
   readonly workspacePath: string;
+  readonly projectLabel: string;
   readonly prompt: string;
   readonly workItem?: string;
   readonly runner?: string;

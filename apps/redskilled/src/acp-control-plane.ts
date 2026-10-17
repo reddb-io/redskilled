@@ -65,6 +65,7 @@ import {
 import {
   ensureAcpProjectWorkspace,
   resolveAcpProjectIdentity,
+  resolveRegisteredDemandIdentity,
   type AcpProjectIdentity,
   type AcpProjectWorkspace,
   type ResolveAcpProjectIdentityOptions,
@@ -241,10 +242,14 @@ export async function startRedskillsAcpControlPlane(
   });
   await listen(server, paths.acpSocketPath);
 
-  // The demand loop holds a label and a path, never a bound Project: resolving
-  // here keeps the one workspace resolver in the one place that owns it.
+  // A drain was registered under a canonical Project label. Reuse its durable
+  // identity instead of letting a transient checkout read create a local twin.
   const runDemandTurn = async (request: DemandBirthTurn): Promise<DemandTurnResult> => runTurn({
-    project: await workspaceFor(await resolveAcpProjectIdentity(request.workspacePath, identityOptions)),
+    project: await workspaceFor(await resolveRegisteredDemandIdentity(
+      request.workspacePath,
+      request.projectLabel,
+      identityOptions,
+    )),
     prompt: request.prompt,
     ...(request.workItem == null ? {} : { workItem: request.workItem }),
     ...(request.runner == null || !(ACP_AGENT_IDS as readonly string[]).includes(request.runner)

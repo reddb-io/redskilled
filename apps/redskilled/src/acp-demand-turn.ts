@@ -147,12 +147,13 @@ export function demandTurnForBirth(
     readonly validation_commands?: readonly string[];
     readonly argv?: readonly string[];
   } | undefined,
-  birth: { readonly workspace_path: string; readonly index: number; readonly work_item?: string },
+  birth: { readonly project_label: string; readonly workspace_path: string; readonly index: number; readonly work_item?: string },
   workerId: string,
   ticket?: { readonly id: string; readonly title: string; readonly labels: readonly string[] },
   standingOrders?: string,
 ): {
   readonly workspacePath: string;
+  readonly projectLabel: string;
   readonly prompt: string;
   readonly workItem?: string;
   readonly runner?: AcpAgentId;
@@ -182,6 +183,7 @@ export function demandTurnForBirth(
   const briefed = demandBriefVerdict(registration, ticket).briefed;
   return {
     workspacePath: birth.workspace_path,
+    projectLabel: birth.project_label,
     prompt: withOrders,
     ...(birth.work_item == null ? {} : { workItem: birth.work_item }),
     ...(runner == null ? {} : { runner }),
@@ -230,6 +232,12 @@ export function ticketBodyBrief(issue: number, title: string, body: string): str
   const cap = 6_000;
   const trimmed = body.length > cap ? `${body.slice(0, cap)}\n\n[… Ticket body truncated at ${cap} characters]` : body;
   return `## Ticket #${issue}${title === "" ? "" : `: ${title}`}\n\n${trimmed}`;
+}
+
+/** The strict parent declaration used by Spec-sliced Tickets. PURE. */
+function parentSpecNumber(body: string): number | null {
+  const match = body.match(/^## Parent[ \t]*\r?\n(?:[ \t]*\r?\n)*[ \t]*Spec #([1-9]\d*)\b/im);
+  return match == null ? null : Number(match[1]);
 }
 
 /** What one admission needs, whoever performs it. */
@@ -456,17 +464,24 @@ export function createDemandTurnRunner(
       const ticketNumber = briefedTicket?.number;
       if (briefedTicket != null && typeof ticketNumber === "number") {
         const body = await readTicketBody(request.project, ticketNumber);
-        if (body != null) {
-          const brief = ticketBodyBrief(
-            ticketNumber,
-            typeof briefedTicket.title === "string" ? briefedTicket.title : "",
-            body,
-          );
-          briefedPrompt = `${briefedPrompt}\n\n${brief}`;
-          briefedTicket = typeof briefedTicket.handoff === "string"
-            ? { ...briefedTicket, handoff: `${briefedTicket.handoff}\n\n${brief}` }
-            : briefedTicket;
+        if (body == null) throw new Error(`Ticket #${ticketNumber} body is unavailable for the unattended brief`);
+        let brief = ticketBodyBrief(
+          ticketNumber,
+          typeof briefedTicket.title === "string" ? briefedTicket.title : "",
+          body,
+        );
+        const specNumber = parentSpecNumber(body);
+        if (specNumber != null) {
+          const specBody = await readTicketBody(request.project, specNumber);
+          if (specBody == null || specBody.trim() === "") {
+            throw new Error(`Spec #${specNumber} body is unavailable for the unattended brief`);
+          }
+          brief += `\n\n## Parent Spec #${specNumber}\n\n${specBody}`;
         }
+        briefedPrompt = `${briefedPrompt}\n\n${brief}`;
+        briefedTicket = typeof briefedTicket.handoff === "string"
+          ? { ...briefedTicket, handoff: `${briefedTicket.handoff}\n\n${brief}` }
+          : briefedTicket;
       }
       const { worker, response } = await requestWorkflowTurn(
         sessionId,

@@ -1,6 +1,6 @@
 import { RequestError } from "@agentclientprotocol/sdk";
-import { describe, expect, it } from "vitest";
-import { bindAcpProjectGithubRead } from "../src/acp-github.js";
+import { describe, expect, it, vi } from "vitest";
+import { bindAcpProjectGithubRead, readProjectTicketBody } from "../src/acp-github.js";
 import { RedskilledGithubCredentialProfileError } from "../src/github-credential-profiles.js";
 import { createRedskilledGithubGateway, createRedskilledGithubUpstream } from "../src/github-gateway.js";
 
@@ -12,6 +12,27 @@ const PROJECT = {
 };
 
 describe("ACP GitHub credential refusals", () => {
+  it("reads a Ticket body from the repository's issue route", async () => {
+    const fetchImpl = vi.fn(async () => Response.json({
+      body: "## Acceptance criteria\n\n- [ ] A callback test passes.",
+    }));
+    const body = await readProjectTicketBody({
+      gateway: createRedskilledGithubGateway({
+        upstream: createRedskilledGithubUpstream({ fetchImpl }),
+      }),
+      credentialForProject: async () => ({
+        profile: "personal",
+        credential: { secret: "test-secret" },
+      }),
+    }, PROJECT, 474);
+
+    expect(body).toContain("## Acceptance criteria");
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://api.github.com/repos/acme/widgets/issues/474",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("carries a missing profile as typed secret-free ACP error data", async () => {
     const read = bindAcpProjectGithubRead({
       gateway: createRedskilledGithubGateway({
