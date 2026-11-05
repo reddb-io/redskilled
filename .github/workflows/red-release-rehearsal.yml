@@ -14,25 +14,6 @@ name: red-release-rehearsal
 # scripts/install.sh --local-dev into a throwaway config home.
 
 on:
-  pull_request:
-    paths:
-      - scripts/rehearse-release-pack.sh
-      - scripts/install.sh
-      - scripts/install-opencode.sh
-      - scripts/install-pi.sh
-      - scripts/build-pi-packages.mjs
-      - scripts/generate-pi-manifests.mjs
-      - scripts/check-npm-tarball-boundaries.mjs
-      - scripts/bundle-app.mjs
-      - packaging/**
-      - plugins/*/.claude-plugin/**
-      - plugins/*/.mcp.json
-      - plugins/*/hooks/**
-      - plugins/*/scripts/**
-      - apps/*/package.json
-      - apps/host-opencode/**
-      - .github/workflows/red-publish.yml
-      - .github/workflows/red-release-rehearsal.yml
   workflow_dispatch:
 
 permissions:

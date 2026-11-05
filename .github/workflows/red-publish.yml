@@ -24,20 +24,12 @@ name: red-publish
 # publish if it does not.
 
 on:
-  push:
-    tags:
-      - "v[0-9]+.[0-9]+.[0-9]+"
   workflow_dispatch:
     inputs:
       tag:
         description: "Release tag to publish (default: the oldest incomplete vX.Y.Z release)"
         required: false
         type: string
-  schedule:
-    # Retry a publish deferred by an active /afk fleet. The resolver below
-    # drains incomplete vX.Y.Z releases oldest-first, so npm's latest dist-tag
-    # and the moving major tag can only advance.
-    - cron: "17 * * * *"
 
 permissions:
   contents: write

@@ -1,8 +1,6 @@
 name: red-toon-watch
 
 on:
-  schedule:
-    - cron: '25 13 * * *'
   workflow_dispatch:
     inputs:
       target_tag:

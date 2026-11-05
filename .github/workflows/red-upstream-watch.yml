@@ -1,8 +1,6 @@
 name: red-upstream-watch
 
 on:
-  schedule:
-    - cron: '0 12 * * *'
   workflow_dispatch:
 
 permissions:
@@ -75,9 +73,9 @@ jobs:
             printf -- '- compare: https://github.com/%s/compare/%s...%s\n\n' "$REPO" "$OLD" "$NEW"
             printf '%s\n\n' "$DIFF_BODY"
             cat <<'BODY_FOOTER'
----
-Review changes, cherry-pick relevant skills, then bump `sha=` in `.upstream`.
-BODY_FOOTER
+            ---
+            Review changes, cherry-pick relevant skills, then bump `sha=` in `.upstream`.
+            BODY_FOOTER
           } > "$body_file"
 
           if [ -n "$existing" ]; then
