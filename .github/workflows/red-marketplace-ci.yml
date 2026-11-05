@@ -1,37 +1,7 @@
 name: red-marketplace-ci
 
 on:
-  pull_request:
-    paths:
-      - ".claude-plugin/marketplace.json"
-      - ".agents/plugins/marketplace.json"
-      - "plugins/**"
-      - "scripts/validate-marketplace-manifests.sh"
-      - "scripts/test-validate-marketplace-manifests.sh"
-      - "scripts/fixtures/marketplace-manifests/**"
-      - "scripts/generate-pi-manifests.mjs"
-      - "scripts/build-pi-packages.mjs"
-      - "scripts/publish-pi-packages.mjs"
-      - "scripts/install-pi.sh"
-      - "scripts/install.sh"
-      - "scripts/validate-install-metadata.sh"
-      - "packaging/pi/**"
-  push:
-    branches: [main]
-    paths:
-      - ".claude-plugin/marketplace.json"
-      - ".agents/plugins/marketplace.json"
-      - "plugins/**"
-      - "scripts/validate-marketplace-manifests.sh"
-      - "scripts/test-validate-marketplace-manifests.sh"
-      - "scripts/fixtures/marketplace-manifests/**"
-      - "scripts/generate-pi-manifests.mjs"
-      - "scripts/build-pi-packages.mjs"
-      - "scripts/publish-pi-packages.mjs"
-      - "scripts/install-pi.sh"
-      - "scripts/install.sh"
-      - "scripts/validate-install-metadata.sh"
-      - "packaging/pi/**"
+  workflow_dispatch:
 
 permissions:
   contents: read

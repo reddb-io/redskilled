@@ -2,16 +2,6 @@ name: Redskilled Mobile APK
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches: [main, develop]
-    paths:
-      - '.github/workflows/red-mobile-apk.yml'
-      - 'apps/redskilled-mobile/**'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-  push:
-    tags:
-      - 'v*'
 
 permissions: {}
 
@@ -21,7 +11,7 @@ concurrency:
 
 jobs:
   build-apk:
-    if: github.event_name == 'pull_request' || vars.REDSKILLED_MOBILE_PUBLISH_ENABLED == 'true'
+    if: github.event_name == 'workflow_dispatch' || vars.REDSKILLED_MOBILE_PUBLISH_ENABLED == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -12,15 +12,6 @@ name: red-package-set-smoke
 # instead of the release.
 
 on:
-  pull_request:
-    paths:
-      - scripts/build-package-set.mjs
-      - scripts/verify-package-set.mjs
-      - scripts/expand-package-set.mjs
-      - scripts/workstation-package-set.mjs
-      - scripts/test-package-set-contract.sh
-      - .github/workflows/red-package-set-smoke.yml
-      - .github/workflows/red-publish.yml
   workflow_dispatch:
 
 permissions:

@@ -15,9 +15,7 @@ name: red-lint-skill-first-line
 #      wildcards.
 
 on:
-  pull_request:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read

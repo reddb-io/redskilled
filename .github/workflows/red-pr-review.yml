@@ -19,10 +19,13 @@
 name: red-pr-review
 
 on:
-  pull_request:
-    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        type: string
+        description: Pull request to review
+        required: true
 
-# Minimal: read the code, write PR review comments + labels. No `contents: write`.
 permissions:
   contents: read
   pull-requests: write
@@ -31,14 +34,14 @@ permissions:
 jobs:
   review:
     # Only the `ready-for-review` label triggers the advisory review.
-    if: github.event.label.name == 'ready-for-review'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           repository: ${{ github.repository }}
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.sha }}
 
       - name: Compose pinned skills
         run: node scripts/prepare-skills.mjs && node scripts/build-pi-packages.mjs
@@ -55,6 +58,7 @@ jobs:
         env:
           # gh operations (read the PR + diff, post the review, edit labels).
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
           # CI never wants a nested container: force the no-sandbox lane.
           RED_AFK_SANDBOX: none
           # Route the review through the MiniMax-M3 subscription (#748). The
@@ -71,7 +75,7 @@ jobs:
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
         run: |
           set -euo pipefail
-          PR="${{ github.event.pull_request.number }}"
+          PR="$PR_NUMBER"
           if ! [[ "$PR" =~ ^[0-9]+$ ]]; then
             echo "::error::invalid PR number: '$PR'"; exit 1
           fi

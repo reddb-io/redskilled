@@ -22,22 +22,7 @@ name: red-workspace-ci
 # An unclassifiable change escalates to the whole workspace (#2750).
 
 on:
-  pull_request:
-  # A merge queue tests each candidate on a temporary `gh-readonly-queue/*` branch
-  # and reports through the `merge_group` event. Without this trigger the required
-  # checks never report for a queued entry, so the queue accepts pull requests and
-  # then holds them forever — which is exactly what it did on 2026-07-31, with
-  # three entries queued and no run against any queue branch.
-  merge_group:
-  push:
-    # automation/toon-bump is written with GITHUB_TOKEN, whose events never
-    # trigger pull_request workflows, so it needs this push entrance to be
-    # checked at all. red-release/version-pr does NOT appear here: it pushes
-    # with RELEASE_PAT and therefore receives the ordinary pull_request checks.
-    # That claim was false between ADR 0139 and 2026-08-13 — the job had lost
-    # the PAT, so the Version PR's checks never started and every release
-    # needed a hand-pushed commit.
-    branches: [main, automation/toon-bump]
+  workflow_dispatch:
 
 permissions:
   contents: read

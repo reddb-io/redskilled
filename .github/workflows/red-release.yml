@@ -2,19 +2,22 @@
 name: RedSkills Release
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
     types: [closed]
-  schedule:
-    - cron: '*/20 * * * *'
+  workflow_dispatch:
+    inputs:
+      task:
+        type: choice
+        description: Release maintenance task
+        options: [version-pr, watch]
+        default: version-pr
 
 permissions: {}
 
 jobs:
   maintain-version-pr:
-    if: vars.REDSKILLED_PUBLISH_ENABLED == 'true' && github.event_name == 'push' && github.event.head_commit.author.name != 'red-skills-release[bot]'
+    if: (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main') && (vars.REDSKILLED_PUBLISH_ENABLED == 'true' && github.event_name == 'workflow_dispatch' && inputs.task == 'version-pr')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -52,7 +55,7 @@ jobs:
         run: node .github/red-skills/release.bundle.mjs run
 
   publish-release:
-    if: vars.REDSKILLED_PUBLISH_ENABLED == 'true' && github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'red-release/version-pr'
+    if: (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main') && (vars.REDSKILLED_PUBLISH_ENABLED == 'true' && github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'red-release/version-pr')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -81,7 +84,7 @@ jobs:
         run: node .github/red-skills/release.bundle.mjs run
 
   watch-version-pr:
-    if: vars.REDSKILLED_PUBLISH_ENABLED == 'true' && github.event_name == 'schedule'
+    if: (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main') && (vars.REDSKILLED_PUBLISH_ENABLED == 'true' && github.event_name == 'workflow_dispatch' && inputs.task == 'watch')
     runs-on: ubuntu-latest
     permissions:
       actions: read

@@ -12,21 +12,7 @@ name: red-mcp-lane-canary
 # schedule, on pushes that touch the lane, and on demand.
 
 on:
-  schedule:
-    # Daily. An inert lane is discovered the next morning, not weeks later.
-    - cron: "17 6 * * *"
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - apps/plugin-dev/src/core/mcp-lane-canary.ts
-      - apps/plugin-dev/src/commands/mcp-lane-canary.ts
-      - apps/plugin-dev/src/runtime/mcp-lane-canary-io.ts
-      - apps/plugin-dev/src/runtime/liveness-anchor.ts
-      - apps/plugin-dev/tests/mcp-lane-canary*.ts
-      - apps/plugin-dev/tests/fixtures/mcp-lane-canary/**
-      - apps/redskilled/**
-      - .github/workflows/red-mcp-lane-canary.yml
 
 permissions:
   contents: read
