@@ -23,6 +23,11 @@ name: red-workspace-ci
 
 on:
   workflow_dispatch:
+    inputs:
+      preview_platforms:
+        type: boolean
+        description: Show selected platforms without running builds, tests or publication
+        default: false
 
 permissions:
   contents: read
@@ -32,6 +37,79 @@ jobs:
   # A push (main / automation branch) always gets the whole workspace: there is
   # no pull-request base to diff against and post-merge state must never be
   # under-validated.
+  platforms:
+    name: Select platforms
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions: {}
+    outputs:
+      linux_x64: ${{ steps.select.outputs.linux_x64 }}
+      linux_arm64: ${{ steps.select.outputs.linux_arm64 }}
+      windows_x64: ${{ steps.select.outputs.windows_x64 }}
+      windows_arm64: ${{ steps.select.outputs.windows_arm64 }}
+      macos_x64: ${{ steps.select.outputs.macos_x64 }}
+      macos_arm64: ${{ steps.select.outputs.macos_arm64 }}
+      linux_armv7: ${{ steps.select.outputs.linux_armv7 }}
+      linux_x86: ${{ steps.select.outputs.linux_x86 }}
+      any: ${{ steps.select.outputs.any }}
+      docker_platforms: ${{ steps.select.outputs.docker_platforms }}
+      matrix_acp-local-transport: ${{ steps.select.outputs.matrix_acp-local-transport }}
+      enabled_acp-local-transport: ${{ steps.select.outputs.enabled_acp-local-transport }}
+    steps:
+      - id: select
+        name: Filter platforms before allocating runners
+        shell: python
+        env:
+          PLATFORM_DEFAULTS: '{"linux_x64":true,"linux_arm64":true,"windows_x64":true,"windows_arm64":false,"macos_x64":false,"macos_arm64":false,"linux_armv7":false,"linux_x86":false}'
+          PLATFORM_AVAILABLE: '["linux_x64", "windows_x64"]'
+          PLATFORM_MATRICES: |
+            {
+              "acp-local-transport": [
+                {
+                  "flag": "linux_x64",
+                  "row": {
+                    "os": "ubuntu-latest"
+                  }
+                },
+                {
+                  "flag": "windows_x64",
+                  "row": {
+                    "os": "windows-latest"
+                  }
+                }
+              ]
+            }
+        run: |
+          import json
+          import os
+
+          defaults = json.loads(os.environ["PLATFORM_DEFAULTS"])
+          enabled = {}
+          for key in defaults:
+              name = "ENABLE_" + key.upper()
+              value = os.environ[name].lower()
+              if value not in ("true", "false"):
+                  raise SystemExit(f"{name} must be true or false, got {value!r}")
+              enabled[key] = value == "true"
+
+          matrices = json.loads(os.environ["PLATFORM_MATRICES"])
+          available = json.loads(os.environ["PLATFORM_AVAILABLE"])
+          output = {key: str(value).lower() for key, value in enabled.items()}
+          output["any"] = str(any(enabled[key] for key in available)).lower()
+          for job, entries in matrices.items():
+              selected = [entry["row"] for entry in entries if enabled[entry["flag"]]]
+              output["enabled_" + job] = str(bool(selected)).lower()
+              # A placeholder keeps GitHub's matrix schema valid when the job is skipped.
+              output["matrix_" + job] = json.dumps({"include": selected or [entries[0]["row"]]}, separators=(",", ":"))
+          docker = [target for key, target in (("linux_x64", "linux/amd64"), ("linux_arm64", "linux/arm64")) if enabled[key]]
+          output["docker_platforms"] = ",".join(docker)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as handle:
+              for key, value in output.items():
+                  handle.write(f"{key}={value}\n")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as handle:
+              handle.write("### Selected platforms\n\n")
+              for key in available:
+                  handle.write(f"- {key}: {str(enabled[key]).lower()}\n")
   scope:
     runs-on: ubuntu-latest
     outputs:
@@ -79,6 +157,9 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node scripts/require-release-entry.mjs --base "$BASE_SHA" --head "$HEAD_SHA"
 
+    needs:
+      - platforms
+    if: ${{ !inputs.preview_platforms && (needs.platforms.outputs.linux_x64 == 'true') }}
   workflow-security:
     runs-on: ubuntu-latest
     steps:
@@ -148,9 +229,14 @@ jobs:
 
 
 
+    needs:
+      - platforms
+    if: ${{ !inputs.preview_platforms && (needs.platforms.outputs.linux_x64 == 'true') }}
   typecheck:
     runs-on: ubuntu-latest
-    needs: scope
+    needs:
+      - scope
+      - platforms
     env:
       # Both step families need install; compute the union once.
       RUN_ANY: ${{ needs.scope.outputs.run_typecheck == 'true' || needs.scope.outputs.run_manifest_checks == 'true' }}
@@ -227,9 +313,12 @@ jobs:
   # fixed cost is seconds (checkout 4s, install 6s), so the fan-out is nearly
   # pure win. The narrowing is unchanged — the whole matrix idles on a PR whose
   # cone does not contain apps/plugin-dev.
+    if: ${{ !inputs.preview_platforms && (needs.platforms.outputs.linux_x64 == 'true') }}
   test-shard:
     runs-on: ubuntu-latest
-    needs: scope
+    needs:
+      - scope
+      - platforms
     strategy:
       # A failing shard must not cancel its siblings: the run has to report
       # every failure at once, not just the first shard to notice one.
@@ -304,9 +393,12 @@ jobs:
 
   # The remaining suites are seconds-cheap, so they stay in one job rather than
   # paying a runner's fixed cost each.
+    if: ${{ !inputs.preview_platforms && (needs.platforms.outputs.linux_x64 == 'true') }}
   test-packages:
     runs-on: ubuntu-latest
-    needs: scope
+    needs:
+      - scope
+      - platforms
     env:
       # JSON array of every package in the affected cone; each step below asks
       # whether its own package is in it.
@@ -369,13 +461,15 @@ jobs:
   # both native endpoint families. Linux proves the known daemon Unix socket and
   # daemon-assigned Worker sockets; Windows proves the same public and Worker ACP
   # exchanges over Named Pipes. Stdio appears only in the launch-edge adapter.
+    if: ${{ !inputs.preview_platforms && (needs.platforms.outputs.linux_x64 == 'true') }}
   acp-local-transport:
     runs-on: ${{ matrix.os }}
-    needs: scope
+    needs:
+      - scope
+      - platforms
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
+      matrix: ${{ fromJSON(needs.platforms.outputs.matrix_acp-local-transport) }}
     env:
       RUN_ACP: ${{ contains(fromJSON(needs.scope.outputs.test_packages), 'apps/redskilled') }}
     steps:
@@ -433,15 +527,21 @@ jobs:
 
   # Branch protection requires a check named `test`, so the name survives the
   # fan-out as an aggregate: the work moved, the contract did not.
+    if: ${{ !inputs.preview_platforms && (needs.platforms.outputs.enabled_acp-local-transport == 'true') }}
   test:
     # `always()` is what keeps this a gate. Without it a FAILED dependency
     # skips this job, and a skipped required check is one branch protection
     # reads as satisfied — the gate would go quiet exactly when it should be
     # loud. Narrowing never produces a skip here: the dependencies always run
     # and shrink their own steps, so a docs-only PR reaches this job green.
-    if: always()
+    if: ${{ !inputs.preview_platforms && ((always()) && (needs.platforms.outputs.linux_x64 == 'true')) }}
     runs-on: ubuntu-latest
-    needs: [scope, test-shard, test-packages, acp-local-transport]
+    needs:
+      - scope
+      - test-shard
+      - test-packages
+      - acp-local-transport
+      - platforms
     steps:
       - name: Fail when a test dependency failed or was cancelled
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
@@ -454,3 +554,12 @@ jobs:
 
       - name: Report aggregate result
         run: echo "All test dependencies reported success (scope ${{ needs.scope.outputs.mode }})."
+env:
+  ENABLE_LINUX_X64: ${{ vars.ENABLE_LINUX_X64 || 'true' }}
+  ENABLE_LINUX_ARM64: ${{ vars.ENABLE_LINUX_ARM64 || 'true' }}
+  ENABLE_WINDOWS_X64: ${{ vars.ENABLE_WINDOWS_X64 || 'true' }}
+  ENABLE_WINDOWS_ARM64: ${{ vars.ENABLE_WINDOWS_ARM64 || 'false' }}
+  ENABLE_MACOS_X64: ${{ vars.ENABLE_MACOS_X64 || 'false' }}
+  ENABLE_MACOS_ARM64: ${{ vars.ENABLE_MACOS_ARM64 || 'false' }}
+  ENABLE_LINUX_ARMV7: ${{ vars.ENABLE_LINUX_ARMV7 || 'false' }}
+  ENABLE_LINUX_X86: ${{ vars.ENABLE_LINUX_X86 || 'false' }}
